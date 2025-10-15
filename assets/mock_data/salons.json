@@ -1,0 +1,198 @@
+[
+  {
+    "id": "salon_1",
+    "name": "Style Studio",
+    "description": "Premium hair salon offering cutting-edge styles and personalized service in a luxurious atmosphere.",
+    "address": "123 Fashion Street, Downtown",
+    "phone": "+1 (555) 123-4567",
+    "email": "info@stylestudio.com",
+    "website": "www.stylestudio.com",
+    "rating": 4.8,
+    "reviewCount": 1247,
+    "priceRange": "$$$",
+    "categories": ["Haircut", "Coloring", "Styling", "Spa"],
+    "services": ["salon_1_service_1", "salon_1_service_2", "salon_1_service_3"],
+    "imageUrls": [
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
+      "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800",
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800"
+    ],
+    "latitude": 40.7128,
+    "longitude": -74.0060,
+    "ownerId": "owner_1",
+    "isVerified": true,
+    "isActive": true,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "openingHours": {
+      "monday": "9:00 AM - 7:00 PM",
+      "tuesday": "9:00 AM - 7:00 PM",
+      "wednesday": "9:00 AM - 7:00 PM",
+      "thursday": "9:00 AM - 8:00 PM",
+      "friday": "9:00 AM - 8:00 PM",
+      "saturday": "8:00 AM - 6:00 PM",
+      "sunday": "10:00 AM - 5:00 PM"
+    },
+    "amenities": ["WiFi", "Parking", "Wheelchair Accessible", "Air Conditioning"],
+    "location": {
+      "latitude": 40.7128,
+      "longitude": -74.0060
+    },
+    "isVerified": true,
+    "isOpen": true,
+    "createdAt": "2023-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "salon_2",
+    "name": "Luxury Spa & Salon",
+    "description": "Full-service spa and salon combining relaxation with beauty treatments for the ultimate pampering experience.",
+    "address": "456 Wellness Avenue, Uptown",
+    "phone": "+1 (555) 234-5678",
+    "email": "contact@luxuryspa.com",
+    "website": "www.luxuryspa.com",
+    "rating": 4.9,
+    "reviewCount": 892,
+    "priceRange": "$$$$",
+    "categories": ["Spa", "Facial", "Massage", "Haircut", "Manicure"],
+    "services": ["salon_2_service_1", "salon_2_service_2", "salon_2_service_3"],
+    "images": [
+      "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800",
+      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800"
+    ],
+    "primaryImageUrl": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+    "openingHours": {
+      "monday": "8:00 AM - 8:00 PM",
+      "tuesday": "8:00 AM - 8:00 PM",
+      "wednesday": "8:00 AM - 8:00 PM",
+      "thursday": "8:00 AM - 9:00 PM",
+      "friday": "8:00 AM - 9:00 PM",
+      "saturday": "7:00 AM - 7:00 PM",
+      "sunday": "9:00 AM - 6:00 PM"
+    },
+    "amenities": ["WiFi", "Parking", "Wheelchair Accessible", "Air Conditioning", "Sauna", "Steam Room"],
+    "location": {
+      "latitude": 40.7589,
+      "longitude": -73.9851
+    },
+    "isVerified": true,
+    "isOpen": true,
+    "createdAt": "2023-02-20T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "salon_3",
+    "name": "Trendy Cuts",
+    "description": "Modern salon specializing in contemporary hairstyles and color trends for the fashion-forward client.",
+    "address": "789 Trendy Lane, Midtown",
+    "phone": "+1 (555) 345-6789",
+    "email": "hello@trendycuts.com",
+    "website": "www.trendycuts.com",
+    "rating": 4.6,
+    "reviewCount": 634,
+    "priceRange": "$$",
+    "categories": ["Haircut", "Coloring", "Styling", "Beard"],
+    "services": ["salon_3_service_1", "salon_3_service_2", "salon_3_service_3"],
+    "images": [
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800",
+      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800",
+      "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800"
+    ],
+    "primaryImageUrl": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800",
+    "openingHours": {
+      "monday": "10:00 AM - 6:00 PM",
+      "tuesday": "10:00 AM - 6:00 PM",
+      "wednesday": "10:00 AM - 6:00 PM",
+      "thursday": "10:00 AM - 7:00 PM",
+      "friday": "10:00 AM - 7:00 PM",
+      "saturday": "9:00 AM - 5:00 PM",
+      "sunday": "Closed"
+    },
+    "amenities": ["WiFi", "Parking", "Air Conditioning"],
+    "location": {
+      "latitude": 40.7505,
+      "longitude": -73.9934
+    },
+    "isVerified": true,
+    "isOpen": true,
+    "createdAt": "2023-03-10T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "salon_4",
+    "name": "Classic Barbershop",
+    "description": "Traditional barbershop offering classic cuts, beard grooming, and old-school service with modern amenities.",
+    "address": "321 Heritage Road, Old Town",
+    "phone": "+1 (555) 456-7890",
+    "email": "info@classicbarbershop.com",
+    "website": "www.classicbarbershop.com",
+    "rating": 4.7,
+    "reviewCount": 445,
+    "priceRange": "$$",
+    "categories": ["Haircut", "Beard", "Mustache", "Shave"],
+    "services": ["salon_4_service_1", "salon_4_service_2", "salon_4_service_3"],
+    "images": [
+      "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800",
+      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800"
+    ],
+    "primaryImageUrl": "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800",
+    "openingHours": {
+      "monday": "8:00 AM - 6:00 PM",
+      "tuesday": "8:00 AM - 6:00 PM",
+      "wednesday": "8:00 AM - 6:00 PM",
+      "thursday": "8:00 AM - 7:00 PM",
+      "friday": "8:00 AM - 7:00 PM",
+      "saturday": "7:00 AM - 5:00 PM",
+      "sunday": "Closed"
+    },
+    "amenities": ["WiFi", "Parking", "Air Conditioning", "TV"],
+    "location": {
+      "latitude": 40.7614,
+      "longitude": -73.9776
+    },
+    "isVerified": true,
+    "isOpen": true,
+    "createdAt": "2023-04-05T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "salon_5",
+    "name": "Beauty Haven",
+    "description": "Comprehensive beauty salon offering hair, skin, and nail services in a serene and welcoming environment.",
+    "address": "654 Beauty Boulevard, Garden District",
+    "phone": "+1 (555) 567-8901",
+    "email": "contact@beautyhaven.com",
+    "website": "www.beautyhaven.com",
+    "rating": 4.5,
+    "reviewCount": 723,
+    "priceRange": "$$$",
+    "categories": ["Haircut", "Coloring", "Facial", "Manicure", "Pedicure"],
+    "services": ["salon_5_service_1", "salon_5_service_2", "salon_5_service_3"],
+    "images": [
+      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800",
+      "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800"
+    ],
+    "primaryImageUrl": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800",
+    "openingHours": {
+      "monday": "9:00 AM - 7:00 PM",
+      "tuesday": "9:00 AM - 7:00 PM",
+      "wednesday": "9:00 AM - 7:00 PM",
+      "thursday": "9:00 AM - 8:00 PM",
+      "friday": "9:00 AM - 8:00 PM",
+      "saturday": "8:00 AM - 6:00 PM",
+      "sunday": "10:00 AM - 5:00 PM"
+    },
+    "amenities": ["WiFi", "Parking", "Wheelchair Accessible", "Air Conditioning", "Refreshments"],
+    "location": {
+      "latitude": 40.7282,
+      "longitude": -73.7949
+    },
+    "isVerified": true,
+    "isOpen": true,
+    "createdAt": "2023-05-12T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  }
+]

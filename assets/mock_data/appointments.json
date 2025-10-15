@@ -1,0 +1,342 @@
+[
+  {
+    "id": "appointment_1",
+    "customerId": "customer_1",
+    "salonId": "salon_1",
+    "serviceId": "salon_1_service_1",
+    "stylistId": "stylist_1",
+    "startAt": "2024-01-20T14:00:00Z",
+    "endAt": "2024-01-20T15:00:00Z",
+    "duration": 60,
+    "price": 85.00,
+    "status": "confirmed",
+    "notes": "First time customer, prefers shorter styles",
+    "serviceDetails": {
+      "id": "salon_1_service_1",
+      "name": "Premium Haircut & Styling",
+      "category": "Haircut",
+      "stylist": "Sarah Johnson"
+    },
+    "customerDetails": {
+      "id": "customer_1",
+      "name": "John Smith",
+      "email": "john.smith@email.com",
+      "phone": "+1 (555) 123-4567"
+    },
+    "salonDetails": {
+      "id": "salon_1",
+      "name": "Style Studio",
+      "address": "123 Fashion Street, Downtown",
+      "phone": "+1 (555) 123-4567",
+      "imageUrl": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400"
+    },
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "appointment_2",
+    "customerId": "customer_2",
+    "salonId": "salon_2",
+    "serviceId": "salon_2_service_1",
+    "stylistId": "stylist_2",
+    "startAt": "2024-01-20T10:00:00Z",
+    "endAt": "2024-01-20T11:30:00Z",
+    "duration": 90,
+    "price": 120.00,
+    "status": "completed",
+    "notes": "Regular customer, sensitive skin",
+    "serviceDetails": {
+      "id": "salon_2_service_1",
+      "name": "Luxury Facial Treatment",
+      "category": "Facial",
+      "stylist": "Lisa Rodriguez"
+    },
+    "customerDetails": {
+      "id": "customer_2",
+      "name": "Emily Johnson",
+      "email": "emily.johnson@email.com",
+      "phone": "+1 (555) 234-5678"
+    },
+    "salonDetails": {
+      "id": "salon_2",
+      "name": "Luxury Spa & Salon",
+      "address": "456 Wellness Avenue, Uptown",
+      "phone": "+1 (555) 234-5678",
+      "imageUrl": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400"
+    },
+    "createdAt": "2024-01-10T10:00:00Z",
+    "updatedAt": "2024-01-20T11:30:00Z"
+  },
+  {
+    "id": "appointment_3",
+    "customerId": "customer_3",
+    "salonId": "salon_3",
+    "serviceId": "salon_3_service_2",
+    "stylistId": "stylist_3",
+    "startAt": "2024-01-22T16:00:00Z",
+    "endAt": "2024-01-22T18:30:00Z",
+    "duration": 150,
+    "price": 180.00,
+    "status": "pending",
+    "notes": "Wants balayage highlights, first time coloring",
+    "serviceDetails": {
+      "id": "salon_3_service_2",
+      "name": "Balayage Highlights",
+      "category": "Coloring",
+      "stylist": "Maya Patel"
+    },
+    "customerDetails": {
+      "id": "customer_3",
+      "name": "Sarah Wilson",
+      "email": "sarah.wilson@email.com",
+      "phone": "+1 (555) 345-6789"
+    },
+    "salonDetails": {
+      "id": "salon_3",
+      "name": "Trendy Cuts",
+      "address": "789 Trendy Lane, Midtown",
+      "phone": "+1 (555) 345-6789",
+      "imageUrl": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400"
+    },
+    "createdAt": "2024-01-18T10:00:00Z",
+    "updatedAt": "2024-01-18T10:00:00Z"
+  },
+  {
+    "id": "appointment_4",
+    "customerId": "customer_4",
+    "salonId": "salon_4",
+    "serviceId": "salon_4_service_1",
+    "stylistId": "stylist_4",
+    "startAt": "2024-01-19T11:00:00Z",
+    "endAt": "2024-01-19T11:30:00Z",
+    "duration": 30,
+    "price": 45.00,
+    "status": "confirmed",
+    "notes": "Regular monthly haircut",
+    "serviceDetails": {
+      "id": "salon_4_service_1",
+      "name": "Classic Haircut",
+      "category": "Haircut",
+      "stylist": "Tony Martinez"
+    },
+    "customerDetails": {
+      "id": "customer_4",
+      "name": "Michael Brown",
+      "email": "michael.brown@email.com",
+      "phone": "+1 (555) 456-7890"
+    },
+    "salonDetails": {
+      "id": "salon_4",
+      "name": "Classic Barbershop",
+      "address": "321 Heritage Road, Old Town",
+      "phone": "+1 (555) 456-7890",
+      "imageUrl": "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400"
+    },
+    "createdAt": "2024-01-12T10:00:00Z",
+    "updatedAt": "2024-01-12T10:00:00Z"
+  },
+  {
+    "id": "appointment_5",
+    "customerId": "customer_5",
+    "salonId": "salon_5",
+    "serviceId": "salon_5_service_1",
+    "stylistId": "stylist_5",
+    "startAt": "2024-01-21T13:00:00Z",
+    "endAt": "2024-01-21T16:00:00Z",
+    "duration": 180,
+    "price": 200.00,
+    "status": "confirmed",
+    "notes": "Special occasion - wedding preparation",
+    "serviceDetails": {
+      "id": "salon_5_service_1",
+      "name": "Complete Hair Makeover",
+      "category": "Haircut",
+      "stylist": "Jennifer Lee"
+    },
+    "customerDetails": {
+      "id": "customer_5",
+      "name": "Jessica Davis",
+      "email": "jessica.davis@email.com",
+      "phone": "+1 (555) 567-8901"
+    },
+    "salonDetails": {
+      "id": "salon_5",
+      "name": "Beauty Haven",
+      "address": "654 Beauty Boulevard, Garden District",
+      "phone": "+1 (555) 567-8901",
+      "imageUrl": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400"
+    },
+    "createdAt": "2024-01-14T10:00:00Z",
+    "updatedAt": "2024-01-14T10:00:00Z"
+  },
+  {
+    "id": "appointment_6",
+    "customerId": "customer_1",
+    "salonId": "salon_2",
+    "serviceId": "salon_2_service_2",
+    "stylistId": "stylist_6",
+    "startAt": "2024-01-18T15:00:00Z",
+    "endAt": "2024-01-18T16:00:00Z",
+    "duration": 60,
+    "price": 100.00,
+    "status": "completed",
+    "notes": "Deep tissue massage for back pain relief",
+    "serviceDetails": {
+      "id": "salon_2_service_2",
+      "name": "Deep Tissue Massage",
+      "category": "Massage",
+      "stylist": "James Wilson"
+    },
+    "customerDetails": {
+      "id": "customer_1",
+      "name": "John Smith",
+      "email": "john.smith@email.com",
+      "phone": "+1 (555) 123-4567"
+    },
+    "salonDetails": {
+      "id": "salon_2",
+      "name": "Luxury Spa & Salon",
+      "address": "456 Wellness Avenue, Uptown",
+      "phone": "+1 (555) 234-5678",
+      "imageUrl": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400"
+    },
+    "createdAt": "2024-01-10T10:00:00Z",
+    "updatedAt": "2024-01-18T16:00:00Z"
+  },
+  {
+    "id": "appointment_7",
+    "customerId": "customer_6",
+    "salonId": "salon_3",
+    "serviceId": "salon_3_service_3",
+    "stylistId": "stylist_7",
+    "startAt": "2024-01-17T12:00:00Z",
+    "endAt": "2024-01-17T12:30:00Z",
+    "duration": 30,
+    "price": 35.00,
+    "status": "cancelled",
+    "notes": "Customer cancelled due to emergency",
+    "serviceDetails": {
+      "id": "salon_3_service_3",
+      "name": "Beard Trim & Style",
+      "category": "Beard",
+      "stylist": "David Kim"
+    },
+    "customerDetails": {
+      "id": "customer_6",
+      "name": "Robert Taylor",
+      "email": "robert.taylor@email.com",
+      "phone": "+1 (555) 678-9012"
+    },
+    "salonDetails": {
+      "id": "salon_3",
+      "name": "Trendy Cuts",
+      "address": "789 Trendy Lane, Midtown",
+      "phone": "+1 (555) 345-6789",
+      "imageUrl": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400"
+    },
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-17T10:00:00Z"
+  },
+  {
+    "id": "appointment_8",
+    "customerId": "customer_7",
+    "salonId": "salon_4",
+    "serviceId": "salon_4_service_2",
+    "stylistId": "stylist_8",
+    "startAt": "2024-01-16T14:30:00Z",
+    "endAt": "2024-01-16T14:55:00Z",
+    "duration": 25,
+    "price": 40.00,
+    "status": "completed",
+    "notes": "Traditional straight razor shave",
+    "serviceDetails": {
+      "id": "salon_4_service_2",
+      "name": "Straight Razor Shave",
+      "category": "Shave",
+      "stylist": "Carlos Rodriguez"
+    },
+    "customerDetails": {
+      "id": "customer_7",
+      "name": "William Anderson",
+      "email": "william.anderson@email.com",
+      "phone": "+1 (555) 789-0123"
+    },
+    "salonDetails": {
+      "id": "salon_4",
+      "name": "Classic Barbershop",
+      "address": "321 Heritage Road, Old Town",
+      "phone": "+1 (555) 456-7890",
+      "imageUrl": "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400"
+    },
+    "createdAt": "2024-01-12T10:00:00Z",
+    "updatedAt": "2024-01-16T15:00:00Z"
+  },
+  {
+    "id": "appointment_9",
+    "customerId": "customer_8",
+    "salonId": "salon_5",
+    "serviceId": "salon_5_service_2",
+    "stylistId": "stylist_9",
+    "startAt": "2024-01-23T11:00:00Z",
+    "endAt": "2024-01-23T12:00:00Z",
+    "duration": 60,
+    "price": 55.00,
+    "status": "pending",
+    "notes": "Gel manicure with nail art",
+    "serviceDetails": {
+      "id": "salon_5_service_2",
+      "name": "Gel Manicure",
+      "category": "Manicure",
+      "stylist": "Sofia Garcia"
+    },
+    "customerDetails": {
+      "id": "customer_8",
+      "name": "Amanda White",
+      "email": "amanda.white@email.com",
+      "phone": "+1 (555) 890-1234"
+    },
+    "salonDetails": {
+      "id": "salon_5",
+      "name": "Beauty Haven",
+      "address": "654 Beauty Boulevard, Garden District",
+      "phone": "+1 (555) 567-8901",
+      "imageUrl": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400"
+    },
+    "createdAt": "2024-01-19T10:00:00Z",
+    "updatedAt": "2024-01-19T10:00:00Z"
+  },
+  {
+    "id": "appointment_10",
+    "customerId": "customer_9",
+    "salonId": "salon_1",
+    "serviceId": "salon_1_service_3",
+    "stylistId": "stylist_10",
+    "startAt": "2024-01-25T09:00:00Z",
+    "endAt": "2024-01-25T12:00:00Z",
+    "duration": 180,
+    "price": 300.00,
+    "status": "confirmed",
+    "notes": "Bridal hair and makeup for wedding day",
+    "serviceDetails": {
+      "id": "salon_1_service_3",
+      "name": "Bridal Hair & Makeup",
+      "category": "Styling",
+      "stylist": "Emma Davis"
+    },
+    "customerDetails": {
+      "id": "customer_9",
+      "name": "Maria Garcia",
+      "email": "maria.garcia@email.com",
+      "phone": "+1 (555) 901-2345"
+    },
+    "salonDetails": {
+      "id": "salon_1",
+      "name": "Style Studio",
+      "address": "123 Fashion Street, Downtown",
+      "phone": "+1 (555) 123-4567",
+      "imageUrl": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400"
+    },
+    "createdAt": "2024-01-20T10:00:00Z",
+    "updatedAt": "2024-01-20T10:00:00Z"
+  }
+]

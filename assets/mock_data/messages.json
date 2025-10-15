@@ -1,0 +1,52 @@
+[
+  {
+    "id": "message_1",
+    "threadId": "thread_customer_1_owner_1",
+    "senderId": "customer_1",
+    "receiverId": "owner_1",
+    "text": "Hi! I'd like to book an appointment for a haircut.",
+    "attachments": [],
+    "createdAt": "2024-01-15T10:00:00.000Z",
+    "status": "read"
+  },
+  {
+    "id": "message_2",
+    "threadId": "thread_customer_1_owner_1",
+    "senderId": "owner_1",
+    "receiverId": "customer_1",
+    "text": "Hello! I'd be happy to help you book an appointment. What time works best for you?",
+    "attachments": [],
+    "createdAt": "2024-01-15T10:05:00.000Z",
+    "status": "read"
+  },
+  {
+    "id": "message_3",
+    "threadId": "thread_customer_1_owner_1",
+    "senderId": "customer_1",
+    "receiverId": "owner_1",
+    "text": "How about tomorrow at 2 PM?",
+    "attachments": [],
+    "createdAt": "2024-01-15T10:10:00.000Z",
+    "status": "read"
+  },
+  {
+    "id": "message_4",
+    "threadId": "thread_customer_1_owner_1",
+    "senderId": "owner_1",
+    "receiverId": "customer_1",
+    "text": "Perfect! I have availability at 2 PM tomorrow. I'll book that for you.",
+    "attachments": [],
+    "createdAt": "2024-01-15T10:15:00.000Z",
+    "status": "read"
+  },
+  {
+    "id": "message_5",
+    "threadId": "thread_customer_1_owner_1",
+    "senderId": "customer_1",
+    "receiverId": "owner_1",
+    "text": "Thank you! See you tomorrow.",
+    "attachments": [],
+    "createdAt": "2024-01-15T10:20:00.000Z",
+    "status": "read"
+  }
+]

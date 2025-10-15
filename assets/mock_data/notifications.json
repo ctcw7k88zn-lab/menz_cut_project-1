@@ -1,0 +1,70 @@
+[
+  {
+    "id": "notification_1",
+    "userId": "customer_1",
+    "type": "appointmentConfirmed",
+    "title": "Appointment Confirmed",
+    "message": "Your appointment for tomorrow at 2:00 PM has been confirmed.",
+    "data": {
+      "appointmentId": "appointment_1",
+      "salonId": "salon_1",
+      "scheduledAt": "2024-01-16T14:00:00.000Z"
+    },
+    "isRead": false,
+    "createdAt": "2024-01-15T10:15:00.000Z"
+  },
+  {
+    "id": "notification_2",
+    "userId": "owner_1",
+    "type": "newAppointment",
+    "title": "New Appointment Request",
+    "message": "John Doe has requested an appointment for tomorrow at 2:00 PM.",
+    "data": {
+      "appointmentId": "appointment_1",
+      "customerId": "customer_1",
+      "scheduledAt": "2024-01-16T14:00:00.000Z"
+    },
+    "isRead": true,
+    "createdAt": "2024-01-15T10:00:00.000Z"
+  },
+  {
+    "id": "notification_3",
+    "userId": "customer_1",
+    "type": "appointmentReminder",
+    "title": "Appointment Reminder",
+    "message": "You have an appointment in 1 hour at The Gentlemen's Cut.",
+    "data": {
+      "appointmentId": "appointment_1",
+      "reminderType": "1_hour"
+    },
+    "isRead": false,
+    "createdAt": "2024-01-16T13:00:00.000Z"
+  },
+  {
+    "id": "notification_4",
+    "userId": "customer_1",
+    "type": "serviceUpdate",
+    "title": "New Service Available",
+    "message": "Premium Hair Styling is now available at The Gentlemen's Cut!",
+    "data": {
+      "serviceId": "service_5",
+      "salonId": "salon_1"
+    },
+    "isRead": false,
+    "createdAt": "2024-01-14T15:30:00.000Z"
+  },
+  {
+    "id": "notification_5",
+    "userId": "owner_1",
+    "type": "newMessage",
+    "title": "New Message",
+    "message": "You have a new message from John Doe.",
+    "data": {
+      "messageId": "message_1",
+      "threadId": "thread_customer_1_owner_1",
+      "senderId": "customer_1"
+    },
+    "isRead": true,
+    "createdAt": "2024-01-15T10:00:00.000Z"
+  }
+]

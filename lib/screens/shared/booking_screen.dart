@@ -1,0 +1,998 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../config/app_theme.dart';
+import '../../models/salon_model.dart';
+import '../../models/service_model.dart';
+import '../../models/appointment_model.dart';
+import '../../providers/appointments_provider.dart';
+
+class BookingScreen extends ConsumerStatefulWidget {
+  final SalonModel salon;
+  final ServiceModel? service;
+
+  const BookingScreen({
+    super.key,
+    required this.salon,
+    this.service,
+  });
+
+  @override
+  ConsumerState<BookingScreen> createState() => _BookingScreenState();
+}
+
+class _BookingScreenState extends ConsumerState<BookingScreen>
+    with TickerProviderStateMixin {
+  late PageController _pageController;
+  late AnimationController _successAnimationController;
+  late Animation<double> _successScaleAnimation;
+  
+  int _currentStep = 0;
+  ServiceModel? _selectedService;
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  String? _selectedStaff;
+  String? _promoCode;
+  String _notes = '';
+  bool _isBooking = false;
+
+  // Mock available times
+  final List<TimeOfDay> _availableTimes = [
+    const TimeOfDay(hour: 9, minute: 0),
+    const TimeOfDay(hour: 10, minute: 0),
+    const TimeOfDay(hour: 11, minute: 0),
+    const TimeOfDay(hour: 12, minute: 0),
+    const TimeOfDay(hour: 14, minute: 0),
+    const TimeOfDay(hour: 15, minute: 0),
+    const TimeOfDay(hour: 16, minute: 0),
+    const TimeOfDay(hour: 17, minute: 0),
+  ];
+
+  // Mock staff members
+  final List<String> _staffMembers = [
+    'Sarah Johnson',
+    'Michael Chen',
+    'Emma Davis',
+    'David Kim',
+  ];
+
+  // Mock services
+  final List<ServiceModel> _services = [
+    ServiceModel(
+      id: 'service_1',
+      salonId: 'salon_1',
+      name: 'Premium Haircut & Styling',
+      description: 'Professional haircut with personalized styling consultation and blow-dry finish.',
+      category: 'Haircut',
+      price: 85.00,
+      durationMinutes: 60,
+      imageUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+      isActive: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+    ServiceModel(
+      id: 'service_2',
+      salonId: 'salon_1',
+      name: 'Full Color Treatment',
+      description: 'Complete hair coloring service with premium products and color consultation.',
+      category: 'Coloring',
+      price: 150.00,
+      durationMinutes: 120,
+      imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
+      isActive: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _successAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _successScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _successAnimationController, curve: Curves.elasticOut),
+    );
+
+    // Set initial service if provided
+    if (widget.service != null) {
+      _selectedService = widget.service;
+      _currentStep = 1; // Skip service selection
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _successAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.backgroundWhite, Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
+            // App Bar
+            SliverAppBar(
+              expandedHeight: AppTheme.isMobile(context) ? 200 : 250,
+              floating: false,
+              pinned: true,
+              backgroundColor: AppTheme.primaryMauve,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: const BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () => context.pop(),
+                                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              ),
+                              const Expanded(
+                                child: Text(
+                                  'Book Appointment',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => context.pop(),
+                                icon: const Icon(Icons.close, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Center(
+                            child: _buildProgressIndicator(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Content
+            SliverFillRemaining(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentStep = index;
+                  });
+                },
+                children: [
+                  _buildServiceSelectionStep(),
+                  _buildDateTimeSelectionStep(),
+                  _buildConfirmationStep(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomNavigation(),
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildProgressDot(0, 'Service'),
+        _buildProgressLine(),
+        _buildProgressDot(1, 'Date & Time'),
+        _buildProgressLine(),
+        _buildProgressDot(2, 'Confirm'),
+      ],
+    );
+  }
+
+  Widget _buildProgressDot(int step, String label) {
+    final isActive = step <= _currentStep;
+    final isCompleted = step < _currentStep;
+    
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isActive ? Colors.white : Colors.white.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, color: AppTheme.primaryMauve, size: 20)
+                : Text(
+                    '${step + 1}',
+                    style: TextStyle(
+                      color: isActive ? AppTheme.primaryMauve : Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.white.withOpacity(0.7),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressLine() {
+    return Container(
+      width: 40,
+      height: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      color: Colors.white.withOpacity(0.3),
+    );
+  }
+
+  Widget _buildServiceSelectionStep() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Service',
+            style: AppTheme.heading2,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Choose the service you\'d like to book',
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          Expanded(
+            child: ListView.builder(
+              itemCount: _services.length,
+              itemBuilder: (context, index) {
+                final service = _services[index];
+                final isSelected = _selectedService?.id == service.id;
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedService = service;
+                      });
+                    },
+                    child: AppTheme.glassCard(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.primaryMauve.withOpacity(0.1) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? AppTheme.primaryMauve : Colors.grey[200]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                service.imageUrl ?? '',
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryMauve.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.business_center,
+                                      color: AppTheme.primaryMauve,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    service.name,
+                                    style: AppTheme.heading3.copyWith(
+                                      color: isSelected ? AppTheme.primaryMauve : AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    service.description,
+                                    style: AppTheme.bodySmall,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.primaryMauve.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          service.category,
+                                          style: AppTheme.bodySmall.copyWith(
+                                            color: AppTheme.primaryMauve,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.access_time,
+                                        size: 16,
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${service.durationMinutes} min',
+                                        style: AppTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              children: [
+                                Text(
+                                  '\$${service.price.toStringAsFixed(0)}',
+                                  style: AppTheme.heading3.copyWith(
+                                    color: AppTheme.primaryMauve,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star,
+                                      color: AppTheme.accentGold,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '4.5',
+                                      style: AppTheme.bodySmall.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateTimeSelectionStep() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Date & Time',
+            style: AppTheme.heading2,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Choose your preferred date and time slot',
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Date Selection
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select Date',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 7,
+                    itemBuilder: (context, index) {
+                      final date = DateTime.now().add(Duration(days: index));
+                      final isSelected = _selectedDate?.day == date.day;
+                      final isToday = index == 0;
+                      
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedDate = date;
+                          });
+                        },
+                        child: Container(
+                          width: 80,
+                          margin: const EdgeInsets.only(right: 12),
+                          child: Column(
+                            children: [
+                              Text(
+                                _getDayName(date.weekday),
+                                style: AppTheme.bodySmall.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: isSelected 
+                                      ? AppTheme.primaryMauve 
+                                      : isToday 
+                                          ? AppTheme.primaryMauve.withOpacity(0.1)
+                                          : Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: isSelected 
+                                      ? Border.all(color: AppTheme.primaryMauve, width: 2)
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    date.day.toString(),
+                                    style: AppTheme.bodyMedium.copyWith(
+                                      color: isSelected 
+                                          ? Colors.white 
+                                          : isToday 
+                                              ? AppTheme.primaryMauve
+                                              : AppTheme.textSecondary,
+                                      fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Time Selection
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select Time',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 2.5,
+                  ),
+                  itemCount: _availableTimes.length,
+                  itemBuilder: (context, index) {
+                    final time = _availableTimes[index];
+                    final isSelected = _selectedTime?.hour == time.hour && _selectedTime?.minute == time.minute;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedTime = time;
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.primaryMauve : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected ? AppTheme.primaryMauve : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            time.format(context),
+                            style: AppTheme.bodySmall.copyWith(
+                              color: isSelected ? Colors.white : AppTheme.textSecondary,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Staff Selection
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select Stylist',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                ..._staffMembers.map((staff) {
+                  final isSelected = _selectedStaff == staff;
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedStaff = staff;
+                      });
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppTheme.primaryMauve.withOpacity(0.1) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? AppTheme.primaryMauve : Colors.grey[200]!,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: AppTheme.primaryMauve.withOpacity(0.1),
+                            child: Text(
+                              staff[0],
+                              style: const TextStyle(
+                                color: AppTheme.primaryMauve,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              staff,
+                              style: AppTheme.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: isSelected ? AppTheme.primaryMauve : AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle,
+                              color: AppTheme.primaryMauve,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmationStep() {
+    if (_selectedService == null || _selectedDate == null || _selectedTime == null) {
+      return const Center(
+        child: Text('Please complete all previous steps'),
+      );
+    }
+
+    final totalPrice = _selectedService!.price;
+    final discount = _promoCode == 'SAVE10' ? totalPrice * 0.1 : 0.0;
+    final finalPrice = totalPrice - discount;
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Confirm Booking',
+            style: AppTheme.heading2,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Review your appointment details',
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Appointment Summary
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Appointment Summary',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                
+                _buildSummaryRow('Service', _selectedService!.name),
+                _buildSummaryRow('Date', _formatDate(_selectedDate!)),
+                _buildSummaryRow('Time', _selectedTime!.format(context)),
+                _buildSummaryRow('Stylist', _selectedStaff ?? 'Any available'),
+                _buildSummaryRow('Duration', '${_selectedService!.durationMinutes} minutes'),
+                const Divider(),
+                _buildSummaryRow('Price', '\$${_selectedService!.price.toStringAsFixed(2)}'),
+                if (discount > 0) ...[
+                  _buildSummaryRow('Discount', '-\$${discount.toStringAsFixed(2)}'),
+                  const Divider(),
+                ],
+                _buildSummaryRow('Total', '\$${finalPrice.toStringAsFixed(2)}', isTotal: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Promo Code
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Promo Code',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _promoCode = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Enter promo code',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    suffixIcon: ElevatedButton(
+                      onPressed: _applyPromoCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryMauve,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Apply'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Notes
+          AppTheme.glassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Special Requests',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _notes = value;
+                    });
+                  },
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Any special requests or notes...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: AppTheme.bodyMedium.copyWith(
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+              color: isTotal ? AppTheme.primaryMauve : AppTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigation() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            if (_currentStep > 0)
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _previousStep,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primaryMauve,
+                    side: const BorderSide(color: AppTheme.primaryMauve),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Previous'),
+                ),
+              ),
+            if (_currentStep > 0) const SizedBox(width: 16),
+            Expanded(
+              flex: _currentStep == 0 ? 1 : 2,
+              child: ElevatedButton(
+                onPressed: _canProceed() ? _nextStep : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryMauve,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(_currentStep == 2 ? 'Confirm Booking' : 'Next'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _canProceed() {
+    switch (_currentStep) {
+      case 0:
+        return _selectedService != null;
+      case 1:
+        return _selectedDate != null && _selectedTime != null;
+      case 2:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void _nextStep() {
+    if (_currentStep < 2) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _confirmBooking();
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _applyPromoCode() {
+    if (_promoCode == 'SAVE10') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Promo code applied! 10% discount added.'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid promo code'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  void _confirmBooking() async {
+    setState(() {
+      _isBooking = true;
+    });
+
+    try {
+      // Simulate booking process
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Create appointment
+      final appointment = AppointmentModel(
+        id: 'appointment_${DateTime.now().millisecondsSinceEpoch}',
+        customerId: 'customer_1',
+        salonId: widget.salon.id,
+        serviceId: _selectedService!.id,
+        stylistId: 'stylist_1',
+        startAt: DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          _selectedTime!.hour,
+          _selectedTime!.minute,
+        ),
+        endAt: DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          _selectedTime!.hour,
+          _selectedTime!.minute,
+        ).add(Duration(minutes: _selectedService!.durationMinutes)),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        status: AppointmentStatus.confirmed,
+        paymentStatus: PaymentStatus.pending,
+        totalAmount: _selectedService!.price,
+        duration: _selectedService!.durationMinutes,
+        price: _selectedService!.price,
+        notes: _notes,
+        serviceDetails: {
+          'id': _selectedService!.id,
+          'name': _selectedService!.name,
+          'category': _selectedService!.category,
+          'stylist': _selectedStaff ?? 'Any available',
+        },
+        customerDetails: {
+          'id': 'customer_1',
+          'name': 'John Smith',
+          'email': 'john.smith@email.com',
+          'phone': '+1 (555) 123-4567',
+        },
+        salonDetails: {
+          'id': widget.salon.id,
+          'name': widget.salon.name,
+          'address': widget.salon.address,
+          'phone': widget.salon.phone,
+          'imageUrl': widget.salon.primaryImageUrl,
+        },
+      );
+
+      // Book appointment
+      await ref.read(appointmentsProvider.notifier).bookAppointment(
+        customerId: 'customer_1',
+        salonId: widget.salon.id,
+        serviceId: _selectedService!.id,
+        startAt: appointment.startAt,
+        staffId: 'stylist_1',
+        notes: _notes,
+      );
+
+      // Show success animation
+      _successAnimationController.forward();
+
+      // Navigate to appointments
+      await Future.delayed(const Duration(seconds: 2));
+      context.go('/customer-appointments');
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Booking failed: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isBooking = false;
+      });
+    }
+  }
+
+  String _getDayName(int weekday) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[weekday - 1];
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}

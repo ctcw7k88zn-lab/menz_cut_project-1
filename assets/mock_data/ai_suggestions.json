@@ -1,0 +1,170 @@
+[
+  {
+    "id": "ai_suggestion_1",
+    "userId": "customer_1",
+    "styleName": "Modern Bob with Balayage",
+    "description": "A contemporary bob cut with subtle balayage highlights that frame the face beautifully. Perfect for professional settings while maintaining a trendy edge.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1594736797933-d0401ba2fe65?w=400",
+    "confidenceScore": 0.92,
+    "faceShape": "oval",
+    "hairType": "straight",
+    "hairLength": "medium",
+    "features": ["Low Maintenance", "Professional", "Face Framing", "Modern"],
+    "stylingTips": [
+      "Use a round brush for volume",
+      "Apply heat protectant before styling",
+      "Touch up roots every 8-10 weeks"
+    ],
+    "recommendedSalons": ["salon_1", "salon_3"],
+    "estimatedPrice": 180.00,
+    "estimatedDuration": 150,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_2",
+    "userId": "customer_1",
+    "styleName": "Layered Long Cut with Face-Framing",
+    "description": "Long, layered hair with face-framing pieces that add movement and dimension. Ideal for those who want to keep length while adding style.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=400",
+    "confidenceScore": 0.87,
+    "faceShape": "oval",
+    "hairType": "wavy",
+    "hairLength": "long",
+    "features": ["Versatile", "Face Framing", "Movement", "Low Maintenance"],
+    "stylingTips": [
+      "Use texturizing spray for definition",
+      "Blow-dry with a diffuser for natural waves",
+      "Regular trims every 10-12 weeks"
+    ],
+    "recommendedSalons": ["salon_1", "salon_5"],
+    "estimatedPrice": 120.00,
+    "estimatedDuration": 90,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_3",
+    "userId": "customer_1",
+    "styleName": "Pixie Cut with Textured Layers",
+    "description": "A bold pixie cut with textured layers that creates volume and movement. Perfect for those ready to make a statement with their hair.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=400",
+    "confidenceScore": 0.78,
+    "faceShape": "heart",
+    "hairType": "fine",
+    "hairLength": "short",
+    "features": ["Bold", "Low Maintenance", "Volume", "Statement"],
+    "stylingTips": [
+      "Use pomade for texture and hold",
+      "Regular trims every 4-6 weeks",
+      "Experiment with different styling products"
+    ],
+    "recommendedSalons": ["salon_1", "salon_3"],
+    "estimatedPrice": 85.00,
+    "estimatedDuration": 60,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_4",
+    "userId": "customer_2",
+    "styleName": "Soft Waves with Honey Highlights",
+    "description": "Beautiful soft waves enhanced with honey-colored highlights that add warmth and dimension to your natural hair color.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400",
+    "confidenceScore": 0.89,
+    "faceShape": "round",
+    "hairType": "wavy",
+    "hairLength": "medium",
+    "features": ["Natural", "Warm Tones", "Versatile", "Face Framing"],
+    "stylingTips": [
+      "Use a curling wand for defined waves",
+      "Apply color-safe shampoo and conditioner",
+      "Touch up highlights every 10-12 weeks"
+    ],
+    "recommendedSalons": ["salon_2", "salon_3"],
+    "estimatedPrice": 160.00,
+    "estimatedDuration": 120,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_5",
+    "userId": "customer_2",
+    "styleName": "Blunt Cut with Subtle Layers",
+    "description": "A clean, blunt cut with subtle internal layers for movement. This style works well for all face shapes and hair types.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1492106087820-71f1a00d2b11?w=400",
+    "confidenceScore": 0.85,
+    "faceShape": "square",
+    "hairType": "straight",
+    "hairLength": "medium",
+    "features": ["Clean", "Versatile", "Professional", "Easy Styling"],
+    "stylingTips": [
+      "Use a flat iron for sleek finish",
+      "Apply smoothing serum for shine",
+      "Regular trims every 8-10 weeks"
+    ],
+    "recommendedSalons": ["salon_1", "salon_5"],
+    "estimatedPrice": 95.00,
+    "estimatedDuration": 75,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_6",
+    "userId": "customer_3",
+    "styleName": "Curly Shag with Bangs",
+    "description": "A modern shag cut with bangs that embraces natural curls and adds a playful, youthful vibe to your look.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=400",
+    "confidenceScore": 0.91,
+    "faceShape": "oval",
+    "hairType": "curly",
+    "hairLength": "medium",
+    "features": ["Playful", "Natural Texture", "Youthful", "Low Maintenance"],
+    "stylingTips": [
+      "Use curl-defining cream",
+      "Diffuse hair for volume",
+      "Avoid over-washing to maintain natural oils"
+    ],
+    "recommendedSalons": ["salon_3", "salon_5"],
+    "estimatedPrice": 110.00,
+    "estimatedDuration": 90,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_7",
+    "userId": "customer_4",
+    "styleName": "Classic Gentleman's Cut",
+    "description": "A timeless gentleman's haircut with clean lines and professional styling. Perfect for business and formal occasions.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+    "confidenceScore": 0.94,
+    "faceShape": "oval",
+    "hairType": "straight",
+    "hairLength": "short",
+    "features": ["Professional", "Timeless", "Clean", "Versatile"],
+    "stylingTips": [
+      "Use pomade for hold and shine",
+      "Regular trims every 3-4 weeks",
+      "Style with a comb for precision"
+    ],
+    "recommendedSalons": ["salon_4"],
+    "estimatedPrice": 45.00,
+    "estimatedDuration": 30,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "ai_suggestion_8",
+    "userId": "customer_4",
+    "styleName": "Textured Crop with Fade",
+    "description": "A modern textured crop with a subtle fade on the sides. This contemporary style adds edge while maintaining professionalism.",
+    "styleImageUrl": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400",
+    "confidenceScore": 0.88,
+    "faceShape": "square",
+    "hairType": "thick",
+    "hairLength": "short",
+    "features": ["Modern", "Textured", "Professional", "Low Maintenance"],
+    "stylingTips": [
+      "Use texturizing paste for definition",
+      "Regular trims every 4-5 weeks",
+      "Style with fingers for natural look"
+    ],
+    "recommendedSalons": ["salon_3", "salon_4"],
+    "estimatedPrice": 55.00,
+    "estimatedDuration": 45,
+    "createdAt": "2024-01-15T10:00:00Z"
+  }
+]

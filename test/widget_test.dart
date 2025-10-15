@@ -286,7 +286,7 @@ void main() {
         name: 'Haircut',
         description: 'Professional haircut',
         price: 50.0,
-        duration: 60,
+        durationMinutes: 60,
         category: 'Haircut',
         imageUrl: 'https://example.com/image.jpg',
         isActive: true,

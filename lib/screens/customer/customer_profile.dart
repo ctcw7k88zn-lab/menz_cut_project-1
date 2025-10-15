@@ -201,7 +201,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                     
                     // Logout Button
                     _buildLogoutButton(),
-                    const SizedBox(height: 100), // Space for bottom nav
+                    const SizedBox(height: 20), // Space for bottom nav
                   ],
                 ),
               ),

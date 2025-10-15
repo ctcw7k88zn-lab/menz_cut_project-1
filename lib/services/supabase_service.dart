@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/salon_model.dart';
 import '../models/service_model.dart';
@@ -585,8 +586,8 @@ class SupabaseService {
       imageUrls: ([data['logo_url'] ?? '', data['banner_url'] ?? ''] as List<String>).where((url) => url.isNotEmpty).toList(),
       rating: (data['rating'] ?? 0.0).toDouble(),
       reviewCount: data['review_count'] ?? 0,
-      categories: List<String>.from(data['categories'] ?? ['Haircut']),
-      openingHours: data['opening_hours'] ?? {'Monday': '9:00-18:00'},
+      categories: (data['categories'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? ['Haircut'],
+      openingHours: Map<String, String>.from(data['opening_hours'] ?? {'Monday': '9:00-18:00'}),
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
       createdAt: DateTime.parse(data['created_at']),
@@ -645,7 +646,10 @@ class SupabaseService {
     return NotificationModel(
       id: data['id'],
       userId: data['user_id'],
-      type: NotificationType.values.firstWhere((e) => e.name == data['type']),
+      type: NotificationType.values.firstWhere(
+        (e) => e.name == data['type'],
+        orElse: () => NotificationType.general,
+      ),
       title: data['title'],
       message: data['message'],
       data: data['data'] ?? {},
@@ -679,5 +683,377 @@ class SupabaseService {
       case UserRole.owner:
         return 'salon_owner'; // owner is alias for salon_owner
     }
+  }
+
+  // ===== APPOINTMENT MANAGEMENT =====
+  
+  /// Create a new appointment with conflict checking
+  static Future<AppointmentModel> createAppointmentWithConflictCheck({
+    required String customerId,
+    required String salonId,
+    required String serviceId,
+    required DateTime startAt,
+    String? staffId,
+    String? notes,
+  }) async {
+    try {
+      // Get service details to calculate end time
+      final service = await _supabase
+          .from('services')
+          .select('duration_minutes, price')
+          .eq('id', serviceId)
+          .single();
+      
+      final duration = service['duration_minutes'] as int;
+      final endAt = startAt.add(Duration(minutes: duration));
+      
+      // Check for conflicts
+      final conflicts = await _supabase
+          .from('appointments')
+          .select('id, start_at, end_at')
+          .eq('salon_id', salonId)
+          .eq('status', 'confirmed')
+          .or('staff_id.eq.$staffId,staff_id.is.null')
+          .gte('start_at', startAt.toIso8601String())
+          .lt('start_at', endAt.toIso8601String());
+      
+      if (conflicts.isNotEmpty) {
+        throw Exception('Time slot conflict detected. Please choose a different time.');
+      }
+      
+      // Create appointment
+      final response = await _supabase
+          .from('appointments')
+          .insert({
+            'customer_id': customerId,
+            'salon_id': salonId,
+            'service_id': serviceId,
+            'staff_id': staffId,
+            'start_at': startAt.toIso8601String(),
+            'end_at': endAt.toIso8601String(),
+            'status': 'pending',
+            'notes': notes,
+            'total_price': service['price'] ?? 0.0,
+            'payment_status': 'pending',
+          })
+          .select()
+          .single();
+      
+      // Create notification for salon owner
+      await createNotification(
+        userId: (await _supabase.from('salons').select('owner_id').eq('id', salonId).single())['owner_id'],
+        type: NotificationType.newAppointment,
+        title: 'New Appointment Request',
+        message: 'You have a new appointment request',
+        data: {'appointment_id': response['id']},
+      );
+      
+      return _appointmentFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to create appointment: ${e.toString()}');
+    }
+  }
+  
+  /// Update appointment status (confirm, cancel, complete)
+  static Future<AppointmentModel> updateAppointmentStatusWithNotification({
+    required String appointmentId,
+    required AppointmentStatus status,
+    String? notes,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('appointments')
+          .update({
+            'status': status.name,
+            'notes': notes,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', appointmentId)
+          .select()
+          .single();
+      
+      // Create notification for customer
+      await createNotification(
+        userId: response['customer_id'],
+        type: NotificationType.appointmentConfirmed,
+        title: 'Appointment ${status.name.capitalize()}',
+        message: 'Your appointment has been ${status.name}',
+        data: {'appointment_id': appointmentId},
+      );
+      
+      return _appointmentFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to update appointment: ${e.toString()}');
+    }
+  }
+  
+  /// Get appointments for customer
+  static Future<List<AppointmentModel>> getCustomerAppointments(String customerId) async {
+    try {
+      final response = await _supabase
+          .from('appointments')
+          .select('''
+            *,
+            salon:salons(name, address, phone),
+            service:services(name, price, duration_minutes)
+          ''')
+          .eq('customer_id', customerId)
+          .order('start_at', ascending: false);
+      
+      return response.map((data) => _appointmentFromMap(data)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch customer appointments: ${e.toString()}');
+    }
+  }
+  
+  /// Get appointments for salon
+  static Future<List<AppointmentModel>> getSalonAppointments(String salonId) async {
+    try {
+      final response = await _supabase
+          .from('appointments')
+          .select('''
+            *,
+            customer:profiles(full_name, phone, email),
+            service:services(name, price, duration_minutes)
+          ''')
+          .eq('salon_id', salonId)
+          .order('start_at', ascending: false);
+      
+      return response.map((data) => _appointmentFromMap(data)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch salon appointments: ${e.toString()}');
+    }
+  }
+  
+  // ===== MESSAGING SYSTEM =====
+  
+  /// Create a message thread between two users
+  static Future<String> createThreadIfNotExists(String userId1, String userId2) async {
+    try {
+      // Check if thread already exists
+      final existingThread = await _supabase
+          .from('messages')
+          .select('thread_id')
+          .or('sender_id.eq.$userId1,receiver_id.eq.$userId1')
+          .or('sender_id.eq.$userId2,receiver_id.eq.$userId2')
+          .limit(1);
+      
+      if (existingThread.isNotEmpty) {
+        return existingThread.first['thread_id'];
+      }
+      
+      // Create new thread
+      final threadId = const Uuid().v4();
+      
+      // Create initial message to establish thread
+      await _supabase
+          .from('messages')
+          .insert({
+            'thread_id': threadId,
+            'sender_id': userId1,
+            'receiver_id': userId2,
+            'text': 'Conversation started',
+            'status': 'sent',
+            'is_read': true,
+          });
+      
+      return threadId;
+    } catch (e) {
+      throw Exception('Failed to create thread: ${e.toString()}');
+    }
+  }
+  
+  /// Send a message
+  static Future<MessageModel> createMessage({
+    required String threadId,
+    required String senderId,
+    required String receiverId,
+    required String text,
+    List<Map<String, dynamic>>? attachments,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('messages')
+          .insert({
+            'thread_id': threadId,
+            'sender_id': senderId,
+            'receiver_id': receiverId,
+            'text': text,
+            'attachments': attachments ?? [],
+            'status': 'sent',
+            'is_read': false,
+          })
+          .select()
+          .single();
+      
+      // Create notification for receiver
+      await createNotification(
+        userId: receiverId,
+        type: NotificationType.newMessage,
+        title: 'New Message',
+        message: text.length > 50 ? '${text.substring(0, 50)}...' : text,
+        data: {'message_id': response['id'], 'thread_id': threadId},
+      );
+      
+      return _messageFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to create message: ${e.toString()}');
+    }
+  }
+  
+  /// Get messages for a thread
+  static Future<List<MessageModel>> getMessages(String threadId) async {
+    try {
+      final response = await _supabase
+          .from('messages')
+          .select('*')
+          .eq('thread_id', threadId)
+          .order('created_at', ascending: true);
+      
+      return response.map((data) => _messageFromMap(data)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch messages: ${e.toString()}');
+    }
+  }
+  
+  /// Mark messages as read
+  static Future<void> markMessagesAsRead(String threadId, String userId) async {
+    try {
+      await _supabase
+          .from('messages')
+          .update({'is_read': true})
+          .eq('thread_id', threadId)
+          .eq('receiver_id', userId)
+          .eq('is_read', false);
+    } catch (e) {
+      throw Exception('Failed to mark messages as read: ${e.toString()}');
+    }
+  }
+  
+  // ===== NOTIFICATIONS =====
+  
+  /// Create a notification
+  static Future<NotificationModel> createNotification({
+    required String userId,
+    required NotificationType type,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('notifications')
+          .insert({
+            'user_id': userId,
+            'type': type.name,
+            'title': title,
+            'message': message,
+            'data': data ?? {},
+            'is_read': false,
+          })
+          .select()
+          .single();
+      
+      return _notificationFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to create notification: ${e.toString()}');
+    }
+  }
+  
+  /// Get notifications for user
+  static Future<List<NotificationModel>> getUserNotifications(String userId) async {
+    try {
+      final response = await _supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+      
+      return response.map((data) => _notificationFromMap(data)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch notifications: ${e.toString()}');
+    }
+  }
+  
+  /// Mark notification as read
+  static Future<void> markNotificationAsReadById(String notificationId) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .update({'is_read': true})
+          .eq('id', notificationId);
+    } catch (e) {
+      throw Exception('Failed to mark notification as read: ${e.toString()}');
+    }
+  }
+  
+  // ===== AI SUGGESTIONS =====
+  
+  /// Request AI style suggestions
+  static Future<List<AISuggestionModel>> requestAISuggestions({
+    required String userId,
+    required String imageUrl,
+    String? salonId,
+    String? serviceId,
+  }) async {
+    try {
+      // Call AI edge function
+      final response = await _supabase.functions.invoke(
+        'ai_style_suggestion',
+        body: {
+          'image_url': imageUrl,
+          'user_id': userId,
+          'salon_id': salonId,
+          'service_id': serviceId,
+        },
+      );
+      
+      final suggestions = response.data as List;
+      final List<AISuggestionModel> aiSuggestions = [];
+      
+      for (final suggestion in suggestions) {
+        // Save suggestion to database
+        final dbResponse = await _supabase
+            .from('ai_suggestions')
+            .insert({
+              'user_id': userId,
+              'suggestion_type': suggestion['type'],
+              'title': suggestion['title'],
+              'description': suggestion['description'],
+              'content': suggestion,
+              'salon_id': salonId,
+              'service_id': serviceId,
+              'image_url': imageUrl,
+              'confidence_score': suggestion['confidence'] ?? 0.0,
+              'tags': suggestion['tags'] ?? [],
+              'is_booked': false,
+            })
+            .select()
+            .single();
+        
+        aiSuggestions.add(_aiSuggestionFromMap(dbResponse));
+      }
+      
+      // Create notification for user
+      await createNotification(
+        userId: userId,
+        type: NotificationType.general,
+        title: 'AI Suggestions Ready',
+        message: 'Your hairstyle suggestions are ready!',
+        data: {'suggestions_count': suggestions.length},
+      );
+      
+      return aiSuggestions;
+    } catch (e) {
+      throw Exception('Failed to get AI suggestions: ${e.toString()}');
+    }
+  }
+  
+}
+
+// Extension to capitalize strings
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }

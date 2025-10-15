@@ -78,10 +78,17 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent() {
-    if (message.isImage) {
-      return _buildImageMessage();
-    } else if (message.isFile) {
-      return _buildFileMessage();
+    if (message.attachments.isNotEmpty) {
+      // Check if first attachment is an image
+      final firstAttachment = message.attachments.first;
+      if (firstAttachment.toLowerCase().contains('image') || 
+          firstAttachment.toLowerCase().endsWith('.jpg') ||
+          firstAttachment.toLowerCase().endsWith('.png') ||
+          firstAttachment.toLowerCase().endsWith('.gif')) {
+        return _buildImageMessage();
+      } else {
+        return _buildFileMessage();
+      }
     } else {
       return _buildTextMessage();
     }
@@ -98,7 +105,7 @@ class ChatBubble extends StatelessWidget {
           ? AppTheme.primaryMauve.withOpacity(0.1)
           : AppTheme.surfaceLight,
       child: Text(
-        message.content,
+        message.text,
         style: AppTheme.bodyMedium.copyWith(
           color: isCurrentUser ? AppTheme.primaryMauve : AppTheme.textPrimary,
         ),
@@ -115,7 +122,7 @@ class ChatBubble extends StatelessWidget {
         child: GestureDetector(
           onTap: onImageTap,
           child: ImageCacheService.cachedImage(
-            imageUrl: message.imageUrl!,
+            imageUrl: message.attachments.first,
             width: 200,
             height: 200,
             fit: BoxFit.cover,
@@ -145,7 +152,7 @@ class ChatBubble extends StatelessWidget {
           ),
           const SizedBox(width: AppTheme.spacing8),
           Text(
-            message.fileName ?? 'File',
+            message.attachments.first.split('/').last,
             style: AppTheme.bodyMedium.copyWith(
               color: isCurrentUser ? AppTheme.primaryMauve : AppTheme.textPrimary,
             ),
@@ -155,6 +162,21 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m';
+    } else {
+      return 'now';
+    }
+  }
+
   Widget _buildMessageStatus() {
     if (!isCurrentUser) return const SizedBox.shrink();
 
@@ -162,7 +184,7 @@ class ChatBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          message.formattedTime,
+          _formatTime(message.createdAt),
           style: AppTheme.caption.copyWith(
             color: AppTheme.textLight,
           ),

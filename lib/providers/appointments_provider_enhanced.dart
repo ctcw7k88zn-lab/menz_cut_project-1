@@ -85,32 +85,24 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
     String? staffId,
   }) async {
     try {
-      // Get service to calculate end time and price
-      final service = await LocalDataService.getService(serviceId);
-      if (service == null) {
-        throw Exception('Service not found');
-      }
-      
-      final endAt = startAt.add(Duration(minutes: service.durationMinutes));
-      
+      // Create appointment model first
       final appointment = AppointmentModel(
-        id: _uuid.v4(),
+        id: const Uuid().v4(),
         customerId: customerId,
         salonId: salonId,
         serviceId: serviceId,
         staffId: staffId,
         startAt: startAt,
-        endAt: endAt,
+        endAt: startAt.add(const Duration(minutes: 60)), // Default duration
+        status: AppointmentStatus.pending,
+        notes: notes,
+        totalAmount: 50.0, // Default amount
+        paymentStatus: PaymentStatus.pending,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        status: AppointmentStatus.pending,
-        paymentStatus: PaymentStatus.pending,
-        totalAmount: service.price,
-        duration: service.durationMinutes,
-        price: service.price,
-        notes: notes,
       );
       
+      // Use AppApi to create appointment
       final savedAppointment = await AppApi.createAppointment(appointment);
       
       // Update state
@@ -128,8 +120,9 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
   /// Update appointment status
   Future<AppointmentModel?> updateAppointmentStatus(
     String appointmentId,
-    AppointmentStatus status,
-  ) async {
+    AppointmentStatus status, {
+    String? notes,
+  }) async {
     try {
       final updatedAppointment = await AppApi.updateAppointmentStatus(
         appointmentId,

@@ -13,17 +13,18 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { image_url, user_id, suggestion_type = 'haircut' } = await req.json()
+    // Parse request body
+    const { image_url, user_id, salon_id, service_id } = await req.json()
 
     if (!image_url || !user_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: image_url, user_id' }),
+        JSON.stringify({ error: 'Missing required parameters' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -31,85 +32,88 @@ serve(async (req) => {
       )
     }
 
-    // Mock AI analysis (replace with actual AI API call)
+    // Mock AI suggestions (replace with actual AI service integration)
     const mockSuggestions = [
       {
-        title: 'Modern Fade Style',
-        description: 'A contemporary fade haircut that would suit your face shape perfectly.',
-        confidence_score: 0.92,
-        tags: ['modern', 'fade', 'short'],
-        salon_recommendations: [
-          {
-            salon_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-            service_id: '11111111-1111-1111-1111-111111111112',
-            reason: 'Specializes in modern cuts'
-          }
-        ]
+        type: 'haircut',
+        title: 'Modern Bob Cut',
+        description: 'A sleek, modern bob that frames your face beautifully',
+        confidence: 0.85,
+        tags: ['short', 'modern', 'professional'],
+        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+        estimated_price: 45,
+        duration_minutes: 60,
+        difficulty: 'medium'
       },
       {
-        title: 'Classic Side Part',
-        description: 'A timeless side part hairstyle that never goes out of fashion.',
-        confidence_score: 0.85,
-        tags: ['classic', 'side_part', 'business'],
-        salon_recommendations: [
-          {
-            salon_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-            service_id: '33333333-3333-3333-3333-333333333334',
-            reason: 'Expert in traditional cuts'
-          }
-        ]
+        type: 'haircut',
+        title: 'Layered Pixie',
+        description: 'A trendy pixie cut with subtle layers for texture',
+        confidence: 0.78,
+        tags: ['short', 'trendy', 'low-maintenance'],
+        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+        estimated_price: 40,
+        duration_minutes: 45,
+        difficulty: 'easy'
+      },
+      {
+        type: 'styling',
+        title: 'Beach Waves',
+        description: 'Effortless beach waves for a relaxed, summery look',
+        confidence: 0.72,
+        tags: ['waves', 'casual', 'summer'],
+        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+        estimated_price: 35,
+        duration_minutes: 30,
+        difficulty: 'easy'
+      },
+      {
+        type: 'color',
+        title: 'Balayage Highlights',
+        description: 'Natural-looking highlights that grow out beautifully',
+        confidence: 0.68,
+        tags: ['highlights', 'natural', 'low-maintenance'],
+        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+        estimated_price: 120,
+        duration_minutes: 180,
+        difficulty: 'hard'
       }
     ]
 
-    // Insert AI suggestions into database
-    const suggestions = mockSuggestions.map(suggestion => ({
-      user_id,
-      suggestion_type,
-      title: suggestion.title,
-      description: suggestion.description,
-      content: suggestion,
-      image_url,
-      confidence_score: suggestion.confidence_score,
-      tags: suggestion.tags,
-      salon_id: suggestion.salon_recommendations[0]?.salon_id || null,
-      service_id: suggestion.salon_recommendations[0]?.service_id || null
-    }))
-
-    const { data, error } = await supabaseClient
-      .from('ai_suggestions')
-      .insert(suggestions)
-      .select()
-
-    if (error) {
-      console.error('Error inserting suggestions:', error)
-      return new Response(
-        JSON.stringify({ error: 'Failed to save suggestions' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+    // Filter suggestions based on salon services if provided
+    let suggestions = mockSuggestions
+    if (salon_id) {
+      // In a real implementation, you would filter based on available salon services
+      suggestions = mockSuggestions.filter(s => s.estimated_price <= 100) // Example filter
     }
 
+    // Return suggestions
     return new Response(
       JSON.stringify({ 
         success: true, 
-        suggestions: mockSuggestions,
-        saved_count: data.length 
+        suggestions: suggestions,
+        user_id: user_id,
+        salon_id: salon_id,
+        service_id: service_id,
+        generated_at: new Date().toISOString()
       }),
-      { 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
 
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Error in AI style suggestion function:', error)
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message 
+      }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
   }

@@ -162,6 +162,7 @@ class AppApi {
     }
   }
 
+
   // Salon operations
   static Future<List<SalonModel>> getSalons() async {
     if (useLocal) {
@@ -264,13 +265,13 @@ class AppApi {
       if (user == null) return [];
       
       // Get appointments where user is customer or salon owner
-      final customerAppointments = await SupabaseService.getAppointmentsByCustomer(user.id);
+      final customerAppointments = await SupabaseService.getCustomerAppointments(user.id);
       final salons = await SupabaseService.getSalons();
       final userSalons = salons.where((s) => s.ownerId == user.id).toList();
       
       List<AppointmentModel> allAppointments = [...customerAppointments];
       for (final salon in userSalons) {
-        final salonAppointments = await SupabaseService.getAppointmentsBySalon(salon.id);
+        final salonAppointments = await SupabaseService.getSalonAppointments(salon.id);
         allAppointments.addAll(salonAppointments);
       }
       
@@ -289,7 +290,7 @@ class AppApi {
       await _simulateNetworkDelay();
       return await LocalDataService.getAppointmentsByCustomer(customerId);
     } else {
-      return SupabaseService.getAppointmentsByCustomer(customerId);
+      return SupabaseService.getCustomerAppointments(customerId);
     }
   }
 
@@ -298,7 +299,7 @@ class AppApi {
       await _simulateNetworkDelay();
       return await LocalDataService.getAppointmentsBySalon(salonId);
     } else {
-      return SupabaseService.getAppointmentsBySalon(salonId);
+      return SupabaseService.getSalonAppointments(salonId);
     }
   }
 

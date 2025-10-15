@@ -51,11 +51,10 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     final message = _messageController.text.trim();
     if (message.isNotEmpty) {
       ref.read(chatProvider.notifier).sendMessage(
-        chatThreadId: 'thread_1',
+        threadId: 'thread_1',
         senderId: 'customer_1',
         receiverId: 'owner_1',
-        type: MessageType.text,
-        content: message,
+        text: message,
       );
       _messageController.clear();
       _scrollToBottom();
@@ -187,17 +186,14 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     );
   }
 
-  Widget _buildMessagesList(ChatState chatState) {
-    if (chatState.isLoading) {
-      return const Center(
+  Widget _buildMessagesList(AsyncValue<List<MessageModel>> messagesAsync) {
+    return messagesAsync.when(
+      loading: () => const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryMauve),
         ),
-      );
-    }
-
-    if (chatState.error != null) {
-      return Center(
+      ),
+      error: (error, stackTrace) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -213,7 +209,7 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
             ),
             const SizedBox(height: AppTheme.spacing8),
             Text(
-              chatState.error!,
+              error.toString(),
               style: AppTheme.bodyMedium.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -226,10 +222,9 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
             ),
           ],
         ),
-      );
-    }
+      ),
+      data: (messages) {
 
-    final messages = chatState.messages;
     if (messages.isEmpty) {
       return Center(
         child: Column(
@@ -281,6 +276,8 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
             onLongPress: () => _showMessageOptions(message),
           ),
         );
+      },
+    );
       },
     );
   }

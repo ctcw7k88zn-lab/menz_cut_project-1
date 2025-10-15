@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
-import '../../providers/appointments_provider.dart';
+import '../../providers/appointments_provider_enhanced.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../widgets/lottie_loader.dart';
 
@@ -33,7 +34,10 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(appointmentsProvider.notifier).loadAppointments();
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        ref.read(appointmentsProvider.notifier).loadAppointmentsForCustomer(authState.user!.id);
+      }
     });
   }
 
@@ -116,7 +120,10 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
                               IconButton(
                                 onPressed: () {
                                   // Refresh appointments
-                                  ref.read(appointmentsProvider.notifier).loadAppointments();
+                                  final authState = ref.read(authProvider);
+                                  if (authState.user != null) {
+                                    ref.read(appointmentsProvider.notifier).loadAppointmentsForCustomer(authState.user!.id);
+                                  }
                                 },
                                 icon: const Icon(Icons.refresh, color: Colors.white),
                               ),
@@ -263,7 +270,10 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () {
-              ref.read(appointmentsProvider.notifier).loadAppointments();
+              final authState = ref.read(authProvider);
+              if (authState.user != null) {
+                ref.read(appointmentsProvider.notifier).loadAppointmentsForCustomer(authState.user!.id);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryMauve,

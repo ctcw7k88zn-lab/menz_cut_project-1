@@ -712,4 +712,16 @@ class AppApi {
     }
     return tags;
   }
+
+  // ===== PROFILE IMAGE UPLOAD =====
+
+  static Future<String?> uploadProfileImage(File imageFile, String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Mock image upload - return a placeholder URL
+      return 'https://via.placeholder.com/150/8B5CF6/FFFFFF?text=Profile';
+    } else {
+      return SupabaseService.uploadProfileImage(imageFile, userId);
+    }
+  }
 }

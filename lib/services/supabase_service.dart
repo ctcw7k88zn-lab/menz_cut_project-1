@@ -1048,6 +1048,31 @@ class SupabaseService {
       throw Exception('Failed to get AI suggestions: ${e.toString()}');
     }
   }
+
+  // ===== PROFILE IMAGE UPLOAD =====
+
+  /// Upload profile image to Supabase Storage
+  static Future<String?> uploadProfileImage(File imageFile, String userId) async {
+    try {
+      final fileName = 'profile_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = fileName;
+
+      // Upload file to storage using profile-pics bucket
+      await _supabase.storage
+          .from('profile-pics')
+          .upload(filePath, imageFile);
+
+      // Get public URL
+      final imageUrl = _supabase.storage
+          .from('profile-pics')
+          .getPublicUrl(filePath);
+
+      return imageUrl;
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      return null;
+    }
+  }
   
 }
 

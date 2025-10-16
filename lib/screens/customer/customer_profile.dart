@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
@@ -245,7 +246,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
 
   Widget _buildProfileAvatar(UserModel? user) {
     return GestureDetector(
-      onTap: _isEditing ? _changeProfilePicture : null,
+      onTap: _changeProfilePicture, // Always allow tapping to change profile picture
       child: Container(
         width: 80,
         height: 80,
@@ -257,14 +258,28 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
           ),
           color: AppTheme.primaryMauve,
         ),
-        child: user?.profileImageUrl != null
+        child: user?.profileImageUrl != null && user!.profileImageUrl!.isNotEmpty
             ? ClipOval(
                 child: Image.network(
-                  user!.profileImageUrl!,
+                  user.profileImageUrl!,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 80,
+                      height: 80,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                    );
+                  },
                   errorBuilder: (context, error, stackTrace) {
+                    print('Error loading profile image: $error');
                     return _buildInitialsAvatar(user.fullName);
                   },
                 ),
@@ -889,15 +904,15 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
         // Upload image to Supabase Storage directly
         final authState = ref.read(authProvider);
         if (authState.user != null) {
-          final imageUrl = await _uploadProfileImageToSupabase(
-            File(image.path),
+          final imageUrl = await _uploadProfileImageToSupabaseWeb(
+            image,
             authState.user!.id,
           );
 
           // Close loading dialog
           Navigator.pop(context);
 
-          if (imageUrl != null) {
+          if (imageUrl != null && imageUrl.isNotEmpty) {
             // Update user profile with new image URL
             final updatedUser = authState.user!.copyWith(
               profileImageUrl: imageUrl,
@@ -927,6 +942,67 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
       }
       
       _showErrorSnackBar('Error uploading image: ${e.toString()}');
+    }
+  }
+
+  Future<String?> _uploadProfileImageToSupabaseWeb(XFile imageFile, String userId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '$userId/$fileName'; // Include user ID as folder to satisfy RLS policy
+      
+      print('Starting upload for file: $filePath');
+      
+      // Read the file as bytes (works on web)
+      final bytes = await imageFile.readAsBytes();
+      print('File size: ${bytes.length} bytes');
+      
+      // Try different upload methods for web compatibility
+      try {
+        // Method 1: Try uploadBinary first
+        print('Trying uploadBinary method...');
+        await supabase.storage
+            .from('profile-pics')
+            .uploadBinary(filePath, bytes);
+        print('UploadBinary successful');
+      } catch (e1) {
+        print('UploadBinary failed: $e1');
+        
+        // Method 2: Try with file path
+        try {
+          print('Trying with file path method...');
+          await supabase.storage
+              .from('profile-pics')
+              .upload(filePath, bytes);
+          print('File path upload successful');
+        } catch (e2) {
+          print('File path upload failed: $e2');
+          
+          // Method 3: Try with Uint8List
+          try {
+            print('Trying with Uint8List...');
+            final uint8List = Uint8List.fromList(bytes);
+            await supabase.storage
+                .from('profile-pics')
+                .uploadBinary(filePath, uint8List);
+            print('Uint8List upload successful');
+          } catch (e3) {
+            print('All upload methods failed. Last error: $e3');
+            throw e3;
+          }
+        }
+      }
+
+      // Get public URL
+      final imageUrl = supabase.storage
+          .from('profile-pics')
+          .getPublicUrl(filePath);
+
+      print('Generated URL: $imageUrl');
+      return imageUrl;
+    } catch (e) {
+      print('Profile image upload error: $e');
+      return null;
     }
   }
 

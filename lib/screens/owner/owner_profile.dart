@@ -1148,7 +1148,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         return imageUrl;
       } catch (uploadError) {
         print('Shop image upload failed: $uploadError');
-        throw uploadError;
+        rethrow;
       }
     } catch (e) {
       print('Shop image upload error: $e');
@@ -1289,7 +1289,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         return imageUrl;
       } catch (uploadError) {
         print('UploadBinary failed: $uploadError');
-        throw uploadError;
+        rethrow;
       }
     } catch (e) {
       print('Profile image upload error: $e');
@@ -1532,7 +1532,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                     }
                   });
                 },
-                activeColor: AppTheme.primaryMauve,
+                activeThumbColor: AppTheme.primaryMauve,
               ),
             ],
           ),
@@ -1664,7 +1664,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
       }
     } catch (e) {
       print('Error saving user preference: $e');
-      throw e;
+      rethrow;
     }
   }
 

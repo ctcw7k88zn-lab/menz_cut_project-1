@@ -602,7 +602,7 @@ class SupabaseService {
             return _userFromMap(retryResponse);
           }
           
-          throw insertError;
+          rethrow;
         }
         
         return _userFromMap(profileData);

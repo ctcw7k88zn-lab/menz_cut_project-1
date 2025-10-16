@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/app_env.dart';
 import '../models/service_model.dart';
 import '../models/appointment_model.dart';

@@ -270,7 +270,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return Container(
+                    return SizedBox(
                       width: 80,
                       height: 80,
                       child: const Center(
@@ -995,7 +995,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             print('Uint8List upload successful');
           } catch (e3) {
             print('All upload methods failed. Last error: $e3');
-            throw e3;
+            rethrow;
           }
         }
       }
@@ -1130,7 +1130,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
       }
     } catch (e) {
       print('Error saving user preference: $e');
-      throw e;
+      rethrow;
     }
   }
 

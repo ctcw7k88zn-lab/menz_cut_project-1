@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/appointment_model.dart';
 import '../services/app_api.dart';
-import '../services/local_data_service.dart';
 import '../services/realtime_service.dart';
 
 /// Enhanced Appointments provider using AsyncNotifier for better error handling

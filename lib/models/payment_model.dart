@@ -1,4 +1,3 @@
-import 'package:hive/hive.dart';
 import 'appointment_model.dart';
 
 class PaymentModel {

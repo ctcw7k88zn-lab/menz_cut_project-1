@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/user_model.dart';
+import '../../services/supabase_service.dart';
 
 class OwnerProfileScreen extends ConsumerStatefulWidget {
   const OwnerProfileScreen({super.key});
@@ -19,21 +24,34 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   late Animation<Offset> _slideAnimation;
   
   final _formKey = GlobalKey<FormState>();
-  final _shopNameController = TextEditingController(text: 'Elite Hair Studio');
-  final _ownerNameController = TextEditingController(text: 'Ahmed Khan');
-  final _phoneController = TextEditingController(text: '+92 300 1234567');
-  final _emailController = TextEditingController(text: 'owner@elitehair.com');
-  final _addressController = TextEditingController(text: 'Model Town, Bahawalpur');
-  final _descriptionController = TextEditingController(text: 'Premium hair salon offering cutting-edge styles and personalized service in a luxurious atmosphere.');
+  final _shopNameController = TextEditingController();
+  final _ownerNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _descriptionController = TextEditingController();
   
   bool _receiveNotifications = true;
   bool _acceptOnlineBookings = true;
   bool _isEditing = false;
+  bool _isLoading = false;
+  String? _profileImageUrl;
+  
+  // Opening hours state - individual days for better control
+  Map<String, Map<String, dynamic>> _openingHours = {
+    'Monday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+    'Tuesday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+    'Wednesday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+    'Thursday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+    'Friday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+    'Saturday': {'open': '11:00 AM', 'close': '6:00 PM', 'isOpen': true},
+    'Sunday': {'open': '', 'close': '', 'isOpen': false},
+  };
 
   final List<String> _serviceCategories = ['Haircut', 'Beard', 'Coloring', 'Facial', 'Hair Treatment'];
   final List<String> _selectedCategories = ['Haircut', 'Beard', 'Coloring'];
   
-  final List<String> _shopImages = [
+  List<String> _shopImages = [
     'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400',
     'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400',
     'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=400',
@@ -43,6 +61,28 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    setState(() => _isLoading = true);
+    try {
+      final authState = ref.read(authProvider);
+      if (authState.isAuthenticated && authState.user != null) {
+        final user = authState.user!;
+        
+        // Load profile data from user and database
+        await _loadProfileFromDatabase(user);
+        _profileImageUrl = user.profileImageUrl;
+        
+        // Load user preferences
+        await _loadUserPreferences();
+      }
+    } catch (e) {
+      print('Error loading profile data: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _initializeAnimations() {
@@ -132,7 +172,14 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                             ],
                           ),
         child: IconButton(
-          onPressed: () => _showComingSoon('Back'),
+          onPressed: () {
+            // Navigate back to previous screen or home
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/owner-home');
+            }
+          },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
         ),
       ),
@@ -195,26 +242,56 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
           children: [
             Stack(
         children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
+          GestureDetector(
+            onTap: _changeProfilePicture,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                       ),
-                    ],
-                    ),
-                    child: const Icon(
-                      Icons.business,
-                    color: AppTheme.primaryMauve,
-                    size: 50,
-                    ),
+                      child: _profileImageUrl != null && _profileImageUrl!.isNotEmpty && !_profileImageUrl!.contains('placeholder')
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.network(
+                                _profileImageUrl!,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  print('Error loading profile image: $error');
+                                  return const Icon(
+                                    Icons.business,
+                                    color: AppTheme.primaryMauve,
+                                    size: 50,
+                                  );
+                                },
+                              ),
+                            )
+                          : const Icon(
+                              Icons.business,
+                              color: AppTheme.primaryMauve,
+                              size: 50,
+                            ),
               ),
+            ),
             Positioned(
               bottom: 0,
               right: 0,
@@ -378,35 +455,77 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-            'Opening Hours',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(16),
+                'Opening Hours',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              if (_isEditing)
+                GestureDetector(
+                  onTap: _editOpeningHours,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Column(
-              children: [
-                _buildTimeRow('Monday - Friday', '9:00 AM - 7:00 PM'),
-                const Divider(),
-                _buildTimeRow('Saturday', '9:00 AM - 6:00 PM'),
-                const Divider(),
-                _buildTimeRow('Sunday', '10:00 AM - 5:00 PM'),
-              ],
+                      color: AppTheme.primaryMauve,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Edit',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
             ],
           ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: _openingHours.isEmpty 
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                        'No opening hours set',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: _openingHours.entries.map((entry) {
+                      final isLast = entry == _openingHours.entries.last;
+                      final day = entry.key;
+                      final hours = entry.value;
+                      final isOpen = hours['isOpen'] ?? false;
+                      final displayText = isOpen 
+                          ? '${hours['open']} - ${hours['close']}'
+                          : 'Closed';
+                      return Column(
+                        children: [
+                          _buildTimeRow(day, displayText),
+                          if (!isLast) const Divider(),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -657,14 +776,14 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
               'Receive Notifications',
               'Get notified about new appointments and messages',
               _receiveNotifications,
-              (value) => setState(() => _receiveNotifications = value),
+              (value) => _toggleNotifications(value),
             ),
             const Divider(),
             _buildSwitchTile(
               'Accept Online Bookings',
               'Allow customers to book appointments online',
               _acceptOnlineBookings,
-              (value) => setState(() => _acceptOnlineBookings = value),
+              (value) => _toggleOnlineBookings(value),
             ),
           ],
                           ),
@@ -752,13 +871,106 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
     );
   }
 
-  void _changeProfilePicture() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Change profile picture feature coming soon!'),
-        backgroundColor: AppTheme.primaryMauve,
+  Future<void> _changeProfilePicture() async {
+    final ImagePicker picker = ImagePicker();
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        setState(() => _isLoading = true);
+        
+        // Show loading snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                CircularProgressIndicator(color: Colors.white),
+                SizedBox(width: 16),
+                Text('Uploading profile picture...'),
+              ],
+            ),
+            backgroundColor: AppTheme.primaryMauve,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Upload to Supabase
+        final authState = ref.read(authProvider);
+        if (authState.user != null) {
+          final imageUrl = await _uploadProfileImageToSupabaseWeb(
+            image,
+            authState.user!.id,
+          );
+
+          if (imageUrl != null) {
+            // Update profile in Supabase
+            final updatedUser = authState.user!.copyWith(
+              profileImageUrl: imageUrl,
+              updatedAt: DateTime.now(),
+            );
+
+            final success = await _updateProfileInSupabase(updatedUser);
+            if (success) {
+              await ref.read(authProvider.notifier).updateProfile(updatedUser);
+              
+              setState(() {
+                _profileImageUrl = imageUrl;
+                _isLoading = false;
+              });
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Profile picture updated successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else {
+              _showErrorSnackBar('Failed to update profile with new image');
+            }
+          } else {
+            _showErrorSnackBar('Failed to upload profile picture');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      _showErrorSnackBar('Error selecting image: $e');
+    }
   }
 
   void _toggleCategory(String category) {
@@ -771,23 +983,186 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
     });
   }
 
-  void _addShopImage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Add shop image feature coming soon!'),
-        backgroundColor: AppTheme.primaryMauve,
+  Future<void> _addShopImage() async {
+    final ImagePicker picker = ImagePicker();
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickShopImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickShopImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _removeImage(int index) {
+  Future<void> _pickShopImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() => _isLoading = true);
+        
+        // Show loading snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                CircularProgressIndicator(color: Colors.white),
+                SizedBox(width: 16),
+                Text('Uploading shop image...'),
+              ],
+            ),
+            backgroundColor: AppTheme.primaryMauve,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Upload to Supabase storage
+        final authState = ref.read(authProvider);
+        if (authState.user != null) {
+          final imageUrl = await _uploadShopImageToSupabase(image, authState.user!.id);
+
+          if (imageUrl != null) {
+            setState(() {
+              _shopImages.add(imageUrl);
+              _isLoading = false;
+            });
+            
+            // Save shop images to database
+            await _saveShopImagesToDatabase();
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Shop image added successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            _showErrorSnackBar('Failed to upload shop image');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error picking shop image: $e');
+      _showErrorSnackBar('Error selecting image: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _removeImage(int index) async {
     setState(() {
       _shopImages.removeAt(index);
     });
+    
+    // Save updated shop images to database
+    await _saveShopImagesToDatabase();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Shop image removed successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
-  void _saveChanges() async {
+  Future<String?> _uploadShopImageToSupabase(XFile imageFile, String userId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final fileName = 'shop_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '$userId/shop/$fileName'; // Upload to user's shop folder
+      final bytes = await imageFile.readAsBytes();
+      
+      print('Starting shop image upload for file: $filePath');
+      print('File size: ${bytes.length} bytes');
+      
+      // Try uploadBinary method
+      try {
+        print('Trying uploadBinary method for shop image...');
+        await supabase.storage
+            .from('profile-pics') // Using same bucket for now
+            .uploadBinary(filePath, bytes);
+        
+        print('Shop image upload successful');
+        final imageUrl = supabase.storage
+            .from('profile-pics')
+            .getPublicUrl(filePath);
+        
+        print('Generated shop image URL: $imageUrl');
+        return imageUrl;
+      } catch (uploadError) {
+        print('Shop image upload failed: $uploadError');
+        throw uploadError;
+      }
+    } catch (e) {
+      print('Shop image upload error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveShopImagesToDatabase() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authState = ref.read(authProvider);
+      
+      if (authState.user != null) {
+        await supabase.from('profiles').update({
+          'shop_images': _shopImages,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', authState.user!.id);
+        
+        print('Shop images saved to database: ${_shopImages.length} images');
+      }
+    } catch (e) {
+      print('Error saving shop images to database: $e');
+    }
+  }
+
+  Future<void> _saveOpeningHoursToDatabase() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authState = ref.read(authProvider);
+      
+      if (authState.user != null) {
+        await supabase.from('profiles').update({
+          'opening_hours': _openingHours,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', authState.user!.id);
+        
+        print('Opening hours saved to database');
+      }
+    } catch (e) {
+      print('Error saving opening hours to database: $e');
+    }
+  }
+
+  Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      
       try {
         // Get current user from auth provider
         final authState = ref.read(authProvider);
@@ -797,27 +1172,462 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
             fullName: _ownerNameController.text,
             phone: _phoneController.text,
             email: _emailController.text,
+            updatedAt: DateTime.now(),
           );
           
-          // Update profile via AppApi
-          await ref.read(authProvider.notifier).updateProfile(updatedUser);
-          
-          setState(() => _isEditing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          // Update profile in Supabase database
+          final success = await _updateProfileInSupabase(updatedUser);
+          if (success) {
+            // Update auth provider state
+            await ref.read(authProvider.notifier).updateProfile(updatedUser);
+            
+            setState(() => _isEditing = false);
+            _showSuccessSnackBar('Profile updated successfully!');
+          } else {
+            _showErrorSnackBar('Failed to update profile in database');
+          }
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update profile: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
+        print('Error saving profile changes: $e');
+        _showErrorSnackBar('Failed to update profile: $e');
+      } finally {
+        setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<bool> _updateProfileInSupabase(UserModel user) async {
+    try {
+      final supabase = Supabase.instance.client;
+      await supabase.from('profiles').update({
+        'full_name': user.fullName,
+        'phone': user.phone,
+        'avatar_url': user.profileImageUrl,
+        'shop_name': _shopNameController.text,
+        'shop_description': _descriptionController.text,
+        'shop_address': _addressController.text,
+        'opening_hours': _openingHours,
+        'shop_images': _shopImages,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', user.id);
+
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {
+            'full_name': user.fullName,
+            'phone': user.phone,
+            'avatar_url': user.profileImageUrl,
+            'shop_name': _shopNameController.text,
+            'shop_description': _descriptionController.text,
+            'shop_address': _addressController.text,
+          },
+        ),
+      );
+      return true;
+    } catch (e) {
+      print('Supabase profile update error: $e');
+      return false;
+    }
+  }
+
+  Future<String?> _uploadProfileImageToSupabaseWeb(XFile imageFile, String userId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '$userId/$fileName'; // Upload to user's folder
+      final bytes = await imageFile.readAsBytes();
+      
+      print('Starting upload for file: $filePath');
+      print('File size: ${bytes.length} bytes');
+      
+      // Try uploadBinary method first
+      try {
+        print('Trying uploadBinary method...');
+        await supabase.storage
+            .from('profile-pics')
+            .uploadBinary(filePath, bytes);
+        
+        print('UploadBinary successful');
+        final imageUrl = supabase.storage
+            .from('profile-pics')
+            .getPublicUrl(filePath);
+        
+        print('Generated URL: $imageUrl');
+        return imageUrl;
+      } catch (uploadError) {
+        print('UploadBinary failed: $uploadError');
+        throw uploadError;
+      }
+    } catch (e) {
+      print('Profile image upload error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadProfileFromDatabase(UserModel user) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final result = await supabase
+          .from('profiles')
+          .select('shop_name, shop_description, shop_address, opening_hours, shop_images')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (result != null) {
+        _shopNameController.text = result['shop_name'] ?? 'Elite Hair Studio';
+        _descriptionController.text = result['shop_description'] ?? 'Premium hair salon offering cutting-edge styles and personalized service in a luxurious atmosphere.';
+        _addressController.text = result['shop_address'] ?? 'Model Town, Bahawalpur';
+        _ownerNameController.text = user.fullName;
+        _phoneController.text = user.phone ?? '';
+        _emailController.text = user.email;
+        
+        // Load opening hours if available
+        if (result['opening_hours'] != null) {
+          setState(() {
+            _openingHours = Map<String, Map<String, dynamic>>.from(
+              result['opening_hours'].map((key, value) => 
+                MapEntry(key, Map<String, dynamic>.from(value))
+              )
+            );
+          });
+        }
+        
+        // Load shop images if available
+        if (result['shop_images'] != null && result['shop_images'].isNotEmpty) {
+          setState(() {
+            _shopImages = List<String>.from(result['shop_images']);
+          });
+        }
+      } else {
+        // Set defaults if no profile data exists
+        _shopNameController.text = 'Elite Hair Studio';
+        _descriptionController.text = 'Premium hair salon offering cutting-edge styles and personalized service in a luxurious atmosphere.';
+        _addressController.text = 'Model Town, Bahawalpur';
+        _ownerNameController.text = user.fullName;
+        _phoneController.text = user.phone ?? '';
+        _emailController.text = user.email;
+      }
+    } catch (e) {
+      print('Error loading profile from database: $e');
+      // Set defaults on error
+      _shopNameController.text = 'Elite Hair Studio';
+      _descriptionController.text = 'Premium hair salon offering cutting-edge styles and personalized service in a luxurious atmosphere.';
+      _addressController.text = 'Model Town, Bahawalpur';
+      _ownerNameController.text = user.fullName;
+      _phoneController.text = user.phone ?? '';
+      _emailController.text = user.email;
+    }
+  }
+
+  Future<void> _loadUserPreferences() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authState = ref.read(authProvider);
+      
+      if (authState.user != null) {
+        final result = await supabase
+            .from('user_preferences')
+            .select('preferences')
+            .eq('user_id', authState.user!.id)
+            .maybeSingle();
+
+        if (result != null && result['preferences'] != null) {
+          final preferences = Map<String, dynamic>.from(result['preferences']);
+          setState(() {
+            _receiveNotifications = preferences['receive_notifications'] ?? true;
+            _acceptOnlineBookings = preferences['accept_online_bookings'] ?? true;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading user preferences: $e');
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _editOpeningHours() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.7,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Edit Opening Hours',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryMauve,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const Divider(),
+              
+              // Content
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _openingHours.length,
+                  itemBuilder: (context, index) {
+                    final day = _openingHours.keys.elementAt(index);
+                    final hours = _openingHours[day]!;
+                    return _buildDayScheduleRow(day, hours);
+                  },
+                ),
+              ),
+              
+              // Action buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppTheme.primaryMauve),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: AppTheme.primaryMauve),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        setState(() {});
+                        _saveOpeningHoursToDatabase();
+                        _showSuccessSnackBar('Opening hours updated successfully!');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryMauve,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save Changes',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayScheduleRow(String day, Map<String, dynamic> hours) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Day name and toggle
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                day,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              Switch(
+                value: hours['isOpen'] ?? false,
+                onChanged: (value) {
+                  setState(() {
+                    _openingHours[day]!['isOpen'] = value;
+                    if (!value) {
+                      _openingHours[day]!['open'] = '';
+                      _openingHours[day]!['close'] = '';
+                    } else {
+                      _openingHours[day]!['open'] = '11:00 AM';
+                      _openingHours[day]!['close'] = '8:00 PM';
+                    }
+                  });
+                },
+                activeColor: AppTheme.primaryMauve,
+              ),
+            ],
+          ),
+          
+          // Time inputs (only show if day is open)
+          if (hours['isOpen'] ?? false) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: hours['open'] ?? '',
+                    decoration: InputDecoration(
+                      labelText: 'Opening Time',
+                      hintText: 'e.g., 11:00 AM',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.access_time),
+                    ),
+                    onChanged: (value) {
+                      _openingHours[day]!['open'] = value;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: hours['close'] ?? '',
+                    decoration: InputDecoration(
+                      labelText: 'Closing Time',
+                      hintText: 'e.g., 8:00 PM',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.access_time),
+                    ),
+                    onChanged: (value) {
+                      _openingHours[day]!['close'] = value;
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.close, color: Colors.red.shade600, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Closed',
+                    style: TextStyle(
+                      color: Colors.red.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    setState(() => _receiveNotifications = value);
+    try {
+      await _saveUserPreference('receive_notifications', value);
+    } catch (e) {
+      setState(() => _receiveNotifications = !value);
+      _showErrorSnackBar('Failed to update notification preference');
+    }
+  }
+
+  Future<void> _toggleOnlineBookings(bool value) async {
+    setState(() => _acceptOnlineBookings = value);
+    try {
+      await _saveUserPreference('accept_online_bookings', value);
+    } catch (e) {
+      setState(() => _acceptOnlineBookings = !value);
+      _showErrorSnackBar('Failed to update online booking preference');
+    }
+  }
+
+  Future<void> _saveUserPreference(String key, dynamic value) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authState = ref.read(authProvider);
+      
+      if (authState.user != null) {
+        print('Saving preference: $key = $value for user: ${authState.user!.id}');
+        
+        // Check if user preferences exist
+        final existing = await supabase
+            .from('user_preferences')
+            .select('preferences')
+            .eq('user_id', authState.user!.id)
+            .maybeSingle();
+
+        Map<String, dynamic> preferences = {};
+        if (existing != null && existing['preferences'] != null) {
+          preferences = Map<String, dynamic>.from(existing['preferences']);
+          print('Existing preferences: $preferences');
+        } else {
+          print('No existing preferences found, creating new ones');
+        }
+
+        // Update the specific preference
+        preferences[key] = value;
+        print('Updated preferences: $preferences');
+
+        // Insert or update user preferences
+        final result = await supabase.from('user_preferences').upsert({
+          'user_id': authState.user!.id,
+          'preferences': preferences,
+          'updated_at': DateTime.now().toIso8601String(),
+        }, onConflict: 'user_id');
+        
+        print('Preferences saved successfully: $result');
+      }
+    } catch (e) {
+      print('Error saving user preference: $e');
+      throw e;
     }
   }
 

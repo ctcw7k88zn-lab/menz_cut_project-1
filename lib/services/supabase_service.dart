@@ -547,14 +547,95 @@ class SupabaseService {
   // Helper methods
   static Future<UserModel> _getUserProfile(String userId) async {
     try {
+      print('Fetching profile for user: $userId');
+      
+      // First, try to get the current user from auth
+      final authUser = _supabase.auth.currentUser;
+      print('Current auth user: ${authUser?.id}, email: ${authUser?.email}');
+      
+      if (authUser == null) {
+        throw Exception('No authenticated user found');
+      }
+      
+      // Try to fetch profile with explicit auth context
       final response = await _supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
       
+      print('Profile query result: $response');
+      
+      if (response == null) {
+        // Profile doesn't exist, create it from auth user data
+        print('Profile not found for user $userId, creating from auth data...');
+        
+        // Create profile from auth user metadata
+        final profileData = {
+          'id': userId,
+          'email': authUser.email ?? '',
+          'full_name': authUser.userMetadata?['full_name'] ?? authUser.email?.split('@')[0] ?? 'User',
+          'phone': authUser.userMetadata?['phone'] ?? '',
+          'role': authUser.userMetadata?['role'] ?? 'salon_owner', // Default to salon_owner for existing users
+          'is_email_verified': authUser.emailConfirmedAt != null,
+          'is_phone_verified': false,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+        
+        print('Creating profile with data: $profileData');
+        
+        try {
+          await _supabase.from('profiles').insert(profileData);
+          print('Profile created successfully for user $userId');
+        } catch (insertError) {
+          print('Error creating profile: $insertError');
+          // If insert fails, try to query again in case it was created by another process
+          final retryResponse = await _supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+          
+          if (retryResponse != null) {
+            print('Profile found on retry: ${retryResponse['email']}, role: ${retryResponse['role']}');
+            return _userFromMap(retryResponse);
+          }
+          
+          throw insertError;
+        }
+        
+        return _userFromMap(profileData);
+      }
+      
+      print('Found existing profile: ${response['email']}, role: ${response['role']}');
       return _userFromMap(response);
     } catch (e) {
+      print('Error in _getUserProfile: $e');
+      
+      // If all else fails, create a basic profile from auth data
+      try {
+        final authUser = _supabase.auth.currentUser;
+        if (authUser != null) {
+          print('Creating fallback profile for user: ${authUser.id}');
+          final fallbackProfile = UserModel(
+            id: authUser.id,
+            email: authUser.email ?? '',
+            fullName: authUser.userMetadata?['full_name'] ?? authUser.email?.split('@')[0] ?? 'User',
+            phone: authUser.userMetadata?['phone'] ?? '',
+            role: UserRole.salonOwner, // Default to salon owner
+            profileImageUrl: null,
+            isEmailVerified: authUser.emailConfirmedAt != null,
+            isPhoneVerified: false,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          return fallbackProfile;
+        }
+      } catch (fallbackError) {
+        print('Fallback profile creation failed: $fallbackError');
+      }
+      
       throw Exception('Failed to fetch user profile: ${e.toString()}');
     }
   }

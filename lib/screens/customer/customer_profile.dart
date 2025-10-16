@@ -102,8 +102,11 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                             children: [
                               IconButton(
                                 onPressed: () {
+                                  // Navigate back to previous screen or home
                                   if (context.canPop()) {
                                     context.pop();
+                                  } else {
+                                    context.go('/customer-home');
                                   }
                                 },
                                 icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -124,10 +127,10 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: IconButton(
-                                  onPressed: _toggleEditMode,
-                                  icon: Icon(
-                                    _isEditing ? Icons.check : Icons.edit,
-                                    color: Colors.white,
+                                onPressed: _toggleEditMode,
+                                icon: Icon(
+                                  _isEditing ? Icons.check : Icons.edit,
+                                  color: Colors.white,
                                     size: 24,
                                   ),
                                   tooltip: _isEditing ? 'Save Changes' : 'Edit Profile',
@@ -258,7 +261,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
           ),
           color: AppTheme.primaryMauve,
         ),
-        child: user?.profileImageUrl != null && user!.profileImageUrl!.isNotEmpty
+        child: user?.profileImageUrl != null && user!.profileImageUrl!.isNotEmpty && !user.profileImageUrl!.contains('placeholder')
             ? ClipOval(
                 child: Image.network(
                   user.profileImageUrl!,
@@ -280,6 +283,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                   },
                   errorBuilder: (context, error, stackTrace) {
                     print('Error loading profile image: $error');
+                    print('Image URL: ${user.profileImageUrl}');
                     return _buildInitialsAvatar(user.fullName);
                   },
                 ),
@@ -312,10 +316,10 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Personal Information',
-                  style: AppTheme.heading3,
+          children: [
+            const Text(
+              'Personal Information',
+              style: AppTheme.heading3,
                 ),
                 if (!_isEditing)
                   TextButton.icon(
@@ -736,8 +740,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
         
         if (success) {
           // Update the auth provider state
-          await ref.read(authProvider.notifier).updateProfile(updatedUser);
-          
+        await ref.read(authProvider.notifier).updateProfile(updatedUser);
+        
           _showSuccessSnackBar('Profile updated successfully!');
           
           // Exit edit mode
@@ -790,7 +794,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
   }
 
   void _showLoadingSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
@@ -822,15 +826,15 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             Text(message),
           ],
         ),
-        backgroundColor: AppTheme.successColor,
+            backgroundColor: AppTheme.successColor,
         duration: const Duration(seconds: 3),
-      ),
-    );
-  }
+          ),
+        );
+      }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
         content: Row(
           children: [
             const Icon(Icons.error, color: Colors.white),
@@ -838,10 +842,10 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: AppTheme.errorColor,
+          backgroundColor: AppTheme.errorColor,
         duration: const Duration(seconds: 5),
-      ),
-    );
+        ),
+      );
   }
 
   void _changeProfilePicture() async {
@@ -924,10 +928,13 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             
             if (success) {
               // Update the auth provider state
-              await ref.read(authProvider.notifier).updateProfile(updatedUser);
+            await ref.read(authProvider.notifier).updateProfile(updatedUser);
+            
+              // Force a rebuild to show the new image
+              setState(() {});
               
               _showSuccessSnackBar('Profile picture updated successfully!');
-            } else {
+          } else {
               _showErrorSnackBar('Failed to update profile with new image');
             }
           } else {
@@ -938,7 +945,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
     } catch (e) {
       // Close loading dialog if it's open
       if (Navigator.canPop(context)) {
-        Navigator.pop(context);
+            Navigator.pop(context);
       }
       
       _showErrorSnackBar('Error uploading image: ${e.toString()}');
@@ -1091,6 +1098,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
       final authState = ref.read(authProvider);
       
       if (authState.user != null) {
+        print('Saving preference: $key = $value for user: ${authState.user!.id}');
+        
         // Check if user preferences exist
         final existing = await supabase
             .from('user_preferences')
@@ -1101,17 +1110,23 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
         Map<String, dynamic> preferences = {};
         if (existing != null && existing['preferences'] != null) {
           preferences = Map<String, dynamic>.from(existing['preferences']);
+          print('Existing preferences: $preferences');
+        } else {
+          print('No existing preferences found, creating new ones');
         }
 
         // Update the specific preference
         preferences[key] = value;
+        print('Updated preferences: $preferences');
 
         // Insert or update user preferences
-        await supabase.from('user_preferences').upsert({
+        final result = await supabase.from('user_preferences').upsert({
           'user_id': authState.user!.id,
           'preferences': preferences,
           'updated_at': DateTime.now().toIso8601String(),
-        });
+        }, onConflict: 'user_id');
+        
+        print('Preferences saved successfully: $result');
       }
     } catch (e) {
       print('Error saving user preference: $e');

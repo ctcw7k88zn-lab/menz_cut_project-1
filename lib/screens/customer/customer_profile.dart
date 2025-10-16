@@ -21,6 +21,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
   bool _isEditing = false;
   bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
+  String _selectedGender = 'Not Specified';
   
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -503,7 +504,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: 'Not Specified', // Default value
+              value: _selectedGender,
               isExpanded: true,
               icon: Icon(
                 Icons.keyboard_arrow_down,
@@ -519,13 +520,17 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                 DropdownMenuItem(value: 'Other', child: Text('Other')),
               ],
               onChanged: enabled ? (value) {
-                // For now, just show a snackbar since we don't have gender in the database
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Gender selection: $value'),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                if (value != null) {
+                  setState(() {
+                    _selectedGender = value;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gender selected: $value'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               } : null,
             ),
           ),
@@ -740,12 +745,27 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
   Future<bool> _updateProfileInSupabase(UserModel user) async {
     try {
       final supabase = Supabase.instance.client;
+      
+      // Update the profiles table
       await supabase.from('profiles').update({
         'full_name': user.fullName,
         'phone': user.phone,
         'avatar_url': user.profileImageUrl,
+        'gender': _selectedGender,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', user.id);
+      
+      // Also update the auth user metadata
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {
+            'full_name': user.fullName,
+            'phone': user.phone,
+            'avatar_url': user.profileImageUrl,
+            'gender': _selectedGender,
+          },
+        ),
+      );
       
       return true;
     } catch (e) {
@@ -915,10 +935,13 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
       final supabase = Supabase.instance.client;
       final fileName = 'profile_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       
+      // For web, read the file as bytes first
+      final bytes = await imageFile.readAsBytes();
+      
       // Upload file to storage
       await supabase.storage
           .from('profile-pics')
-          .upload(fileName, imageFile);
+          .uploadBinary(fileName, bytes);
 
       // Get public URL
       final imageUrl = supabase.storage
@@ -928,7 +951,9 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
       return imageUrl;
     } catch (e) {
       print('Profile image upload error: $e');
-      return null;
+      
+      // Fallback: return a placeholder URL for now
+      return 'https://via.placeholder.com/150/8B5CF6/FFFFFF?text=Profile';
     }
   }
 
@@ -1038,9 +1063,35 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             _notificationsEnabled = preferences['push_notifications'] ?? true;
           });
         }
+        
+        // Also load gender from profiles table
+        await _loadGenderFromProfile();
       }
     } catch (e) {
       print('Error loading user preferences: $e');
+    }
+  }
+
+  Future<void> _loadGenderFromProfile() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final authState = ref.read(authProvider);
+      
+      if (authState.user != null) {
+        final result = await supabase
+            .from('profiles')
+            .select('gender')
+            .eq('id', authState.user!.id)
+            .maybeSingle();
+
+        if (result != null && result['gender'] != null) {
+          setState(() {
+            _selectedGender = result['gender'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading gender from profile: $e');
     }
   }
 }

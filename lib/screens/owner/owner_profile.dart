@@ -61,6 +61,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
+    _initializeOpeningHours(); // Initialize opening hours first
     _loadProfileData();
   }
 
@@ -77,12 +78,31 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         
         // Load user preferences
         await _loadUserPreferences();
+        
+        // Ensure opening hours are initialized
+        _initializeOpeningHours();
       }
     } catch (e) {
       print('Error loading profile data: $e');
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  void _initializeOpeningHours() {
+    // Always initialize opening hours with default values
+    setState(() {
+      _openingHours = {
+        'Monday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+        'Tuesday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+        'Wednesday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+        'Thursday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+        'Friday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true},
+        'Saturday': {'open': '11:00 AM', 'close': '6:00 PM', 'isOpen': true},
+        'Sunday': {'open': '', 'close': '', 'isOpen': false},
+      };
+    });
+    print('Opening hours initialized: $_openingHours');
   }
 
   void _initializeAnimations() {
@@ -173,11 +193,24 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                           ),
         child: IconButton(
           onPressed: () {
-            // Navigate back to previous screen or home
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/owner-home');
+            print('Back button pressed');
+            try {
+              // Navigate back to previous screen or home
+              if (context.canPop()) {
+                print('Can pop, going back');
+                context.pop();
+              } else {
+                print('Cannot pop, navigating to owner-home');
+                context.go('/owner-home');
+              }
+            } catch (e) {
+              print('Navigation error: $e');
+              // Fallback navigation
+              try {
+                context.go('/owner-home');
+              } catch (fallbackError) {
+                print('Fallback navigation error: $fallbackError');
+              }
             }
           },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
@@ -245,19 +278,19 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
           GestureDetector(
             onTap: _changeProfilePicture,
             child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
                       ),
+                    ],
+                    ),
                       child: _profileImageUrl != null && _profileImageUrl!.isNotEmpty && !_profileImageUrl!.contains('placeholder')
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(20),
@@ -278,9 +311,9 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                                 errorBuilder: (context, error, stackTrace) {
                                   print('Error loading profile image: $error');
                                   return const Icon(
-                                    Icons.business,
-                                    color: AppTheme.primaryMauve,
-                                    size: 50,
+                      Icons.business,
+                    color: AppTheme.primaryMauve,
+                    size: 50,
                                   );
                                 },
                               ),
@@ -290,8 +323,8 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                               color: AppTheme.primaryMauve,
                               size: 50,
                             ),
+                    ),
               ),
-            ),
             Positioned(
               bottom: 0,
               right: 0,
@@ -460,12 +493,12 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Opening Hours',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
+            'Opening Hours',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
               ),
               if (_isEditing)
                 GestureDetector(
@@ -491,7 +524,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+                    decoration: BoxDecoration(
               color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade300),
@@ -516,16 +549,16 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                           ? '${hours['open']} - ${hours['close']}'
                           : 'Closed';
                       return Column(
-                        children: [
+              children: [
                           _buildTimeRow(day, displayText),
                           if (!isLast) const Divider(),
                         ],
                       );
                     }).toList(),
                   ),
+                ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -915,8 +948,8 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         setState(() => _isLoading = true);
         
         // Show loading snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
             content: Row(
               children: [
                 CircularProgressIndicator(color: Colors.white),
@@ -924,7 +957,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                 Text('Uploading profile picture...'),
               ],
             ),
-            backgroundColor: AppTheme.primaryMauve,
+        backgroundColor: AppTheme.primaryMauve,
             duration: Duration(seconds: 3),
           ),
         );
@@ -1027,8 +1060,8 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         setState(() => _isLoading = true);
         
         // Show loading snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
             content: Row(
               children: [
                 CircularProgressIndicator(color: Colors.white),
@@ -1036,7 +1069,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                 Text('Uploading shop image...'),
               ],
             ),
-            backgroundColor: AppTheme.primaryMauve,
+        backgroundColor: AppTheme.primaryMauve,
             duration: Duration(seconds: 3),
           ),
         );
@@ -1179,9 +1212,9 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
           final success = await _updateProfileInSupabase(updatedUser);
           if (success) {
             // Update auth provider state
-            await ref.read(authProvider.notifier).updateProfile(updatedUser);
-            
-            setState(() => _isEditing = false);
+          await ref.read(authProvider.notifier).updateProfile(updatedUser);
+          
+          setState(() => _isEditing = false);
             _showSuccessSnackBar('Profile updated successfully!');
           } else {
             _showErrorSnackBar('Failed to update profile in database');
@@ -1345,119 +1378,123 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
-      ),
-    );
-  }
+          ),
+        );
+      }
 
   void _editOpeningHours() {
+    print('Opening hours data: $_openingHours');
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          height: MediaQuery.of(context).size.height * 0.7,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Edit Opening Hours',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryMauve,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Edit Opening Hours',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryMauve,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const Divider(),
-              
-              // Content
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _openingHours.length,
-                  itemBuilder: (context, index) {
-                    final day = _openingHours.keys.elementAt(index);
-                    final hours = _openingHours[day]!;
-                    return _buildDayScheduleRow(day, hours);
-                  },
-                ),
-              ),
-              
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
+                    IconButton(
                       onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppTheme.primaryMauve),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                
+                // Content
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _openingHours.length,
+                    itemBuilder: (context, index) {
+                      final day = _openingHours.keys.elementAt(index);
+                      final hours = _openingHours[day]!;
+                      print('Building row for $day: $hours');
+                      return _buildDayScheduleRow(day, hours, setDialogState);
+                    },
+                  ),
+                ),
+                
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppTheme.primaryMauve),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: AppTheme.primaryMauve),
                         ),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: AppTheme.primaryMauve),
-                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        setState(() {});
-                        _saveOpeningHoursToDatabase();
-                        _showSuccessSnackBar('Opening hours updated successfully!');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryMauve,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {});
+                          _saveOpeningHoursToDatabase();
+                          _showSuccessSnackBar('Opening hours updated successfully!');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryMauve,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Save Changes',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
-                      child: const Text(
-                        'Save Changes',
-                        style: TextStyle(color: Colors.white),
-                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDayScheduleRow(String day, Map<String, dynamic> hours) {
+  Widget _buildDayScheduleRow(String day, Map<String, dynamic> hours, StateSetter setDialogState) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -1484,7 +1521,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
               Switch(
                 value: hours['isOpen'] ?? false,
                 onChanged: (value) {
-                  setState(() {
+                  setDialogState(() {
                     _openingHours[day]!['isOpen'] = value;
                     if (!value) {
                       _openingHours[day]!['open'] = '';

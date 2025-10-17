@@ -10,7 +10,9 @@ import '../../models/user_model.dart';
 import '../../services/supabase_service.dart';
 
 class OwnerProfileScreen extends ConsumerStatefulWidget {
-  const OwnerProfileScreen({super.key});
+  final VoidCallback? onBackPressed;
+  
+  const OwnerProfileScreen({super.key, this.onBackPressed});
 
   @override
   ConsumerState<OwnerProfileScreen> createState() => _OwnerProfileScreenState();
@@ -206,9 +208,15 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                           ),
         child: IconButton(
           onPressed: () {
-            print('Back button pressed - navigating to home tab');
-            // Navigate to owner-home which will show the dashboard with Home tab (index 0)
-            context.go('/owner-home');
+            print('Back button pressed');
+            if (widget.onBackPressed != null) {
+              print('Using callback to switch to home tab');
+              widget.onBackPressed!();
+            } else {
+              print('No callback available, navigating to owner-home');
+              // Fallback: Navigate to owner-home which will show the dashboard with Home tab (index 0)
+              context.go('/owner-home');
+            }
           },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
         ),

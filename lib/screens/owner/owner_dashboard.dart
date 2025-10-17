@@ -23,12 +23,17 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen>
   
   int _currentIndex = 0;
   
-  final List<Widget> _pages = [
+  List<Widget> get _pages => [
     const OwnerHomeScreen(),
     const OwnerAnalyticsScreen(),
     const OwnerServicesScreen(),
     const OwnerChatScreen(),
-    const OwnerProfileScreen(),
+    OwnerProfileScreen(
+      onBackPressed: () {
+        // Switch to Home tab (index 0)
+        _onTabTapped(0);
+      },
+    ),
   ];
 
   final List<NavigationItem> _navigationItems = [

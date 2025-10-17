@@ -980,7 +980,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
           print('Trying with file path method...');
           await supabase.storage
               .from('profile-pics')
-              .upload(filePath, bytes);
+              .upload(filePath, File.fromRawPath(bytes));
           print('File path upload successful');
         } catch (e2) {
           print('File path upload failed: $e2');

@@ -65,6 +65,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
     _loadProfileData();
   }
 
+
   Future<void> _loadProfileData() async {
     setState(() => _isLoading = true);
     try {
@@ -74,19 +75,31 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         
         // Load profile data from user and database
         await _loadProfileFromDatabase(user);
-        _profileImageUrl = user.profileImageUrl;
+        // Only set profile image from user if not loaded from database
+        if (_profileImageUrl == null) {
+          _profileImageUrl = user.profileImageUrl;
+        }
         
         // Load user preferences
         await _loadUserPreferences();
         
-        // Ensure opening hours are initialized
-        _initializeOpeningHours();
+        // Only initialize opening hours if not loaded from database
+        if (_openingHours.isEmpty) {
+          _initializeOpeningHours();
+        }
       }
     } catch (e) {
       print('Error loading profile data: $e');
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _refreshProfileData() async {
+    // Clear current data to force reload from database
+    _openingHours.clear();
+    _profileImageUrl = null;
+    await _loadProfileData();
   }
 
   void _initializeOpeningHours() {
@@ -193,25 +206,9 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                           ),
         child: IconButton(
           onPressed: () {
-            print('Back button pressed');
-            try {
-              // Navigate back to previous screen or home
-              if (context.canPop()) {
-                print('Can pop, going back');
-                context.pop();
-              } else {
-                print('Cannot pop, navigating to owner-home');
-                context.go('/owner-home');
-              }
-            } catch (e) {
-              print('Navigation error: $e');
-              // Fallback navigation
-              try {
-                context.go('/owner-home');
-              } catch (fallbackError) {
-                print('Fallback navigation error: $fallbackError');
-              }
-            }
+            print('Back button pressed - navigating to home tab');
+            // Navigate to owner-home which will show the dashboard with Home tab (index 0)
+            context.go('/owner-home');
           },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
         ),
@@ -240,7 +237,13 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
             ],
           ),
           child: IconButton(
-            onPressed: () => setState(() => _isEditing = !_isEditing),
+            onPressed: () {
+              setState(() => _isEditing = !_isEditing);
+              // Refresh profile data when entering edit mode
+              if (_isEditing) {
+                _refreshProfileData();
+              }
+            },
             icon: Icon(
               _isEditing ? Icons.check : Icons.edit,
               color: AppTheme.primaryMauve,
@@ -977,7 +980,9 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
               updatedAt: DateTime.now(),
             );
 
+            print('Calling _updateProfileInSupabase with user: ${updatedUser.profileImageUrl}');
             final success = await _updateProfileInSupabase(updatedUser);
+            print('_updateProfileInSupabase result: $success');
             if (success) {
               await ref.read(authProvider.notifier).updateProfile(updatedUser);
               
@@ -993,6 +998,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                 ),
               );
             } else {
+              print('Failed to update profile in Supabase');
               _showErrorSnackBar('Failed to update profile with new image');
             }
           } else {
@@ -1232,6 +1238,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   Future<bool> _updateProfileInSupabase(UserModel user) async {
     try {
       final supabase = Supabase.instance.client;
+      print('Updating profile in Supabase with avatar_url: ${user.profileImageUrl}');
       await supabase.from('profiles').update({
         'full_name': user.fullName,
         'phone': user.phone,
@@ -1243,19 +1250,27 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         'shop_images': _shopImages,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', user.id);
+      print('Profile updated successfully in Supabase');
 
-      await supabase.auth.updateUser(
-        UserAttributes(
-          data: {
-            'full_name': user.fullName,
-            'phone': user.phone,
-            'avatar_url': user.profileImageUrl,
-            'shop_name': _shopNameController.text,
-            'shop_description': _descriptionController.text,
-            'shop_address': _addressController.text,
-          },
-        ),
-      );
+      // Update auth user data separately
+      try {
+        await supabase.auth.updateUser(
+          UserAttributes(
+            data: {
+              'full_name': user.fullName,
+              'phone': user.phone,
+              'avatar_url': user.profileImageUrl,
+              'shop_name': _shopNameController.text,
+              'shop_description': _descriptionController.text,
+              'shop_address': _addressController.text,
+            },
+          ),
+        );
+        print('Auth user updated successfully');
+      } catch (authError) {
+        print('Auth user update failed (non-critical): $authError');
+        // Don't fail the entire operation if auth update fails
+      }
       return true;
     } catch (e) {
       print('Supabase profile update error: $e');
@@ -1302,7 +1317,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
       final supabase = Supabase.instance.client;
       final result = await supabase
           .from('profiles')
-          .select('shop_name, shop_description, shop_address, opening_hours, shop_images')
+          .select('shop_name, shop_description, shop_address, opening_hours, shop_images, avatar_url')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -1313,6 +1328,17 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         _ownerNameController.text = user.fullName;
         _phoneController.text = user.phone ?? '';
         _emailController.text = user.email;
+        
+        // Load profile image if available
+        print('Loading avatar_url from database: ${result['avatar_url']}');
+        if (result['avatar_url'] != null) {
+          setState(() {
+            _profileImageUrl = result['avatar_url'];
+          });
+          print('Profile image loaded from database: $_profileImageUrl');
+        } else {
+          print('No avatar_url found in database');
+        }
         
         // Load opening hours if available
         if (result['opening_hours'] != null) {

@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../models/salon_model.dart';
 import '../../models/service_model.dart';
-import '../../models/appointment_model.dart';
 import '../../providers/appointments_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class BookingScreen extends ConsumerStatefulWidget {
   final SalonModel salon;
@@ -1049,16 +1049,30 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
 
   void _confirmBooking() async {
     try {
-      // Simulate booking process
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Create appointment
-      final appointment = AppointmentModel(
-        id: 'appointment_${DateTime.now().millisecondsSinceEpoch}',
-        customerId: 'customer_1',
+      // Get the authenticated user
+      final authState = ref.read(authProvider);
+      if (authState.user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in to book an appointment'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+      
+      print('🎯 Starting appointment booking process...');
+      print('📅 Selected date: $_selectedDate');
+      print('⏰ Selected time: $_selectedTime');
+      print('🏢 Salon ID: ${widget.salon.id}');
+      print('🔧 Service ID: ${_selectedService!.id}');
+      print('👤 Customer ID: ${authState.user!.id}');
+      
+      // Create appointment using the proper provider
+      final appointment = await ref.read(appointmentsProvider.notifier).bookAppointment(
+        customerId: authState.user!.id, // Use actual authenticated user ID
         salonId: widget.salon.id,
         serviceId: _selectedService!.id,
-        stylistId: 'stylist_1',
         startAt: DateTime(
           _selectedDate!.year,
           _selectedDate!.month,
@@ -1066,59 +1080,29 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           _selectedTime!.hour,
           _selectedTime!.minute,
         ),
-        endAt: DateTime(
-          _selectedDate!.year,
-          _selectedDate!.month,
-          _selectedDate!.day,
-          _selectedTime!.hour,
-          _selectedTime!.minute,
-        ).add(Duration(minutes: _selectedService!.durationMinutes)),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        status: AppointmentStatus.confirmed,
-        paymentStatus: PaymentStatus.pending,
-        totalAmount: _selectedService!.price,
-        duration: _selectedService!.durationMinutes,
-        price: _selectedService!.price,
-        notes: _notes,
-        serviceDetails: {
-          'id': _selectedService!.id,
-          'name': _selectedService!.name,
-          'category': _selectedService!.category,
-          'stylist': _selectedStaff ?? 'Any available',
-        },
-        customerDetails: {
-          'id': 'customer_1',
-          'name': 'John Smith',
-          'email': 'john.smith@email.com',
-          'phone': '+1 (555) 123-4567',
-        },
-        salonDetails: {
-          'id': widget.salon.id,
-          'name': widget.salon.name,
-          'address': widget.salon.address,
-          'phone': widget.salon.phone,
-          'imageUrl': widget.salon.primaryImageUrl,
-        },
+        notes: _notes.isNotEmpty ? _notes : null,
+        staffId: _selectedStaff,
       );
 
-      // Book appointment
-      await ref.read(appointmentsProvider.notifier).bookAppointment(
-        customerId: 'customer_1',
-        salonId: widget.salon.id,
-        serviceId: _selectedService!.id,
-        startAt: appointment.startAt,
-        staffId: 'stylist_1',
-        notes: _notes,
-      );
+      if (appointment != null) {
+        print('✅ Appointment created successfully: ${appointment.id}');
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Appointment booked successfully!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
 
-      // Show success animation
-
-      // Navigate to appointments
-      await Future.delayed(const Duration(seconds: 2));
-      context.go('/customer-appointments');
-
+        // Navigate to appointments
+        await Future.delayed(const Duration(seconds: 1));
+        context.go('/customer-appointments');
+      } else {
+        print('❌ Appointment creation returned null');
+        throw Exception('Failed to create appointment');
+      }
     } catch (e) {
+      print('❌ Booking failed with error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Booking failed: $e'),

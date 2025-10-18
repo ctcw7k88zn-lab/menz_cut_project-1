@@ -319,6 +319,17 @@ class AppApi {
     }
   }
 
+  static Future<ServiceModel> getServiceById(String serviceId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      final service = await LocalDataService.getService(serviceId);
+      if (service == null) throw Exception('Service not found');
+      return service;
+    } else {
+      return SupabaseService.getServiceById(serviceId);
+    }
+  }
+
   static Future<void> deleteService(String serviceId) async {
     if (useLocal) {
       await _simulateNetworkDelay();
@@ -417,7 +428,14 @@ class AppApi {
       
       return savedAppointment;
     } else {
-      return SupabaseService.createAppointment(appointment);
+      return SupabaseService.createAppointmentWithConflictCheck(
+        customerId: appointment.customerId,
+        salonId: appointment.salonId,
+        serviceId: appointment.serviceId,
+        startAt: appointment.startAt,
+        staffId: appointment.staffId,
+        notes: appointment.notes,
+      );
     }
   }
 

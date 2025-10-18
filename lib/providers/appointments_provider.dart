@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/appointment_model.dart';
 import '../services/app_api.dart';
-import '../services/local_data_service.dart';
 import '../services/realtime_service.dart';
 
 /// Enhanced Appointments provider using AsyncNotifier for better error handling
@@ -55,22 +54,34 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
 
   /// Load appointments for a specific customer
   Future<void> loadAppointmentsForCustomer(String customerId) async {
+    print('🔧 AppointmentsProvider: Loading appointments for customer: $customerId');
     state = const AsyncValue.loading();
     try {
       final appointments = await AppApi.getAppointmentsByCustomer(customerId);
+      print('🔧 AppointmentsProvider: Loaded ${appointments.length} appointments for customer');
+      for (final appointment in appointments) {
+        print('🔧 AppointmentsProvider: Appointment ${appointment.id} - ${appointment.startAt} - ${appointment.status}');
+      }
       state = AsyncValue.data(appointments);
     } catch (error, stackTrace) {
+      print('❌ AppointmentsProvider: Error loading customer appointments: $error');
       state = AsyncValue.error(error, stackTrace);
     }
   }
 
   /// Load appointments for a specific salon
   Future<void> loadAppointmentsForSalon(String salonId) async {
+    print('🔧 AppointmentsProvider: Loading appointments for salon: $salonId');
     state = const AsyncValue.loading();
     try {
       final appointments = await AppApi.getAppointmentsBySalon(salonId);
+      print('🔧 AppointmentsProvider: Loaded ${appointments.length} appointments for salon');
+      for (final appointment in appointments) {
+        print('🔧 AppointmentsProvider: Appointment ${appointment.id} - ${appointment.startAt} - ${appointment.status}');
+      }
       state = AsyncValue.data(appointments);
     } catch (error, stackTrace) {
+      print('❌ AppointmentsProvider: Error loading salon appointments: $error');
       state = AsyncValue.error(error, stackTrace);
     }
   }
@@ -85,11 +96,12 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
     String? staffId,
   }) async {
     try {
+      print('🔧 AppointmentsProvider: Starting bookAppointment...');
+      print('🔧 AppointmentsProvider: Service ID: $serviceId');
+      
       // Get service to calculate end time and price
-      final service = await LocalDataService.getService(serviceId);
-      if (service == null) {
-        throw Exception('Service not found');
-      }
+      final service = await AppApi.getServiceById(serviceId);
+      print('🔧 AppointmentsProvider: Service retrieved: ${service.name}');
       
       final endAt = startAt.add(Duration(minutes: service.durationMinutes));
       
@@ -111,7 +123,9 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
         notes: notes,
       );
       
+      print('🔧 AppointmentsProvider: Calling AppApi.createAppointment...');
       final savedAppointment = await AppApi.createAppointment(appointment);
+      print('🔧 AppointmentsProvider: Appointment created: ${savedAppointment.id}');
       
       // Update state
       state.whenData((appointments) {
@@ -120,6 +134,8 @@ class AppointmentsNotifier extends AsyncNotifier<List<AppointmentModel>> {
       
       return savedAppointment;
     } catch (error, stackTrace) {
+      print('❌ AppointmentsProvider: Error: $error');
+      print('❌ AppointmentsProvider: StackTrace: $stackTrace');
       state = AsyncValue.error(error, stackTrace);
       return null;
     }

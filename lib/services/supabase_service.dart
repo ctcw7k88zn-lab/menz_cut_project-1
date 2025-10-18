@@ -348,6 +348,21 @@ class SupabaseService {
     }
   }
 
+  static Future<ServiceModel> getServiceById(String serviceId) async {
+    try {
+      final response = await _supabase
+          .from('services')
+          .select('*')
+          .eq('id', serviceId)
+          .eq('is_active', true)
+          .single();
+      
+      return _serviceFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to get service: ${e.toString()}');
+    }
+  }
+
   static Future<void> deleteService(String serviceId) async {
     try {
       await _supabase
@@ -847,6 +862,7 @@ class SupabaseService {
       salonId: data['salon_id'],
       serviceId: data['service_id'],
       staffId: data['staff_id'],
+      stylistId: data['staff_id'], // Use staff_id as stylist_id
       startAt: DateTime.parse(data['start_at']),
       endAt: DateTime.parse(data['end_at']),
       status: AppointmentStatus.values.firstWhere((e) => e.name == data['status']),
@@ -855,6 +871,23 @@ class SupabaseService {
       totalAmount: (data['total_price'] ?? 0.0).toDouble(),
       createdAt: DateTime.parse(data['created_at']),
       updatedAt: DateTime.parse(data['updated_at']),
+      duration: data['service']?['duration_minutes'] ?? 60,
+      price: (data['service']?['price'] ?? data['total_price'] ?? 0.0).toDouble(),
+      serviceDetails: data['service'] != null ? {
+        'name': data['service']['name'],
+        'price': data['service']['price'],
+        'duration_minutes': data['service']['duration_minutes'],
+      } : null,
+      customerDetails: data['customer'] != null ? {
+        'full_name': data['customer']['full_name'],
+        'phone': data['customer']['phone'],
+        'email': data['customer']['email'],
+      } : null,
+      salonDetails: data['salon'] != null ? {
+        'name': data['salon']['name'],
+        'address': data['salon']['address'],
+        'phone': data['salon']['phone'],
+      } : null,
     );
   }
 
@@ -926,6 +959,13 @@ class SupabaseService {
     String? notes,
   }) async {
     try {
+      print('🔧 SupabaseService: Creating appointment with conflict check...');
+      print('🔧 SupabaseService: customerId: $customerId');
+      print('🔧 SupabaseService: salonId: $salonId');
+      print('🔧 SupabaseService: serviceId: $serviceId');
+      print('🔧 SupabaseService: staffId: $staffId');
+      print('🔧 SupabaseService: notes: $notes');
+      
       // Get service details to calculate end time
       final service = await _supabase
           .from('services')
@@ -936,46 +976,82 @@ class SupabaseService {
       final duration = service['duration_minutes'] as int;
       final endAt = startAt.add(Duration(minutes: duration));
       
+      print('🔧 SupabaseService: Service duration: $duration minutes');
+      print('🔧 SupabaseService: Start time: ${startAt.toIso8601String()}');
+      print('🔧 SupabaseService: End time: ${endAt.toIso8601String()}');
+      
       // Check for conflicts
-      final conflicts = await _supabase
+      var conflictQuery = _supabase
           .from('appointments')
           .select('id, start_at, end_at')
           .eq('salon_id', salonId)
           .eq('status', 'confirmed')
-          .or('staff_id.eq.$staffId,staff_id.is.null')
           .gte('start_at', startAt.toIso8601String())
           .lt('start_at', endAt.toIso8601String());
+      
+      // Add staff-specific conflict check
+      if (staffId != null) {
+        conflictQuery = conflictQuery.or('staff_id.eq.$staffId,staff_id.is.null');
+      } else {
+        conflictQuery = conflictQuery.isFilter('staff_id', null);
+      }
+      
+      final conflicts = await conflictQuery;
       
       if (conflicts.isNotEmpty) {
         throw Exception('Time slot conflict detected. Please choose a different time.');
       }
       
       // Create appointment
+      final appointmentData = {
+        'customer_id': customerId,
+        'salon_id': salonId,
+        'service_id': serviceId,
+        'start_at': startAt.toIso8601String(),
+        'end_at': endAt.toIso8601String(),
+        'status': 'pending',
+        'total_price': service['price'] ?? 0.0,
+        'payment_status': 'pending',
+      };
+      
+      // Only add staff_id if it's not null
+      if (staffId != null) {
+        appointmentData['staff_id'] = staffId;
+        print('🔧 SupabaseService: Added staff_id: $staffId');
+      } else {
+        print('🔧 SupabaseService: staff_id is null, not adding to appointment data');
+      }
+      
+      // Only add notes if it's not null
+      if (notes != null) {
+        appointmentData['notes'] = notes;
+        print('🔧 SupabaseService: Added notes: $notes');
+      } else {
+        print('🔧 SupabaseService: notes is null, not adding to appointment data');
+      }
+      
+      print('🔧 SupabaseService: Final appointment data: $appointmentData');
+      
       final response = await _supabase
           .from('appointments')
-          .insert({
-            'customer_id': customerId,
-            'salon_id': salonId,
-            'service_id': serviceId,
-            'staff_id': staffId,
-            'start_at': startAt.toIso8601String(),
-            'end_at': endAt.toIso8601String(),
-            'status': 'pending',
-            'notes': notes,
-            'total_price': service['price'] ?? 0.0,
-            'payment_status': 'pending',
-          })
+          .insert(appointmentData)
           .select()
           .single();
       
-      // Create notification for salon owner
-      await createNotification(
-        userId: (await _supabase.from('salons').select('owner_id').eq('id', salonId).single())['owner_id'],
-        type: NotificationType.newAppointment,
-        title: 'New Appointment Request',
-        message: 'You have a new appointment request',
-        data: {'appointment_id': response['id']},
-      );
+      // Create notification for salon owner (optional - don't fail if this fails)
+      try {
+        await createNotification(
+          userId: (await _supabase.from('salons').select('owner_id').eq('id', salonId).single())['owner_id'],
+          type: NotificationType.newAppointment,
+          title: 'New Appointment Request',
+          message: 'You have a new appointment request',
+          data: {'appointment_id': response['id']},
+        );
+        print('🔧 SupabaseService: Notification created successfully');
+      } catch (notificationError) {
+        print('⚠️ SupabaseService: Failed to create notification: $notificationError');
+        // Don't fail the appointment creation if notification fails
+      }
       
       return _appointmentFromMap(response);
     } catch (e) {
@@ -1019,6 +1095,7 @@ class SupabaseService {
   /// Get appointments for customer
   static Future<List<AppointmentModel>> getCustomerAppointments(String customerId) async {
     try {
+      print('🔧 SupabaseService: Getting appointments for customer: $customerId');
       final response = await _supabase
           .from('appointments')
           .select('''
@@ -1029,8 +1106,12 @@ class SupabaseService {
           .eq('customer_id', customerId)
           .order('start_at', ascending: false);
       
-      return response.map((data) => _appointmentFromMap(data)).toList();
+      print('🔧 SupabaseService: Found ${response.length} appointments for customer');
+      final appointments = response.map((data) => _appointmentFromMap(data)).toList();
+      print('🔧 SupabaseService: Mapped ${appointments.length} appointments');
+      return appointments;
     } catch (e) {
+      print('❌ SupabaseService: Error fetching customer appointments: $e');
       throw Exception('Failed to fetch customer appointments: ${e.toString()}');
     }
   }
@@ -1038,6 +1119,7 @@ class SupabaseService {
   /// Get appointments for salon
   static Future<List<AppointmentModel>> getSalonAppointments(String salonId) async {
     try {
+      print('🔧 SupabaseService: Getting appointments for salon: $salonId');
       final response = await _supabase
           .from('appointments')
           .select('''
@@ -1048,8 +1130,12 @@ class SupabaseService {
           .eq('salon_id', salonId)
           .order('start_at', ascending: false);
       
-      return response.map((data) => _appointmentFromMap(data)).toList();
+      print('🔧 SupabaseService: Found ${response.length} appointments for salon');
+      final appointments = response.map((data) => _appointmentFromMap(data)).toList();
+      print('🔧 SupabaseService: Mapped ${appointments.length} appointments');
+      return appointments;
     } catch (e) {
+      print('❌ SupabaseService: Error fetching salon appointments: $e');
       throw Exception('Failed to fetch salon appointments: ${e.toString()}');
     }
   }
@@ -1170,11 +1256,32 @@ class SupabaseService {
     Map<String, dynamic>? data,
   }) async {
     try {
+      // Map Flutter enum values to database enum values
+      String dbType;
+      switch (type) {
+        case NotificationType.newAppointment:
+        case NotificationType.appointmentConfirmed:
+        case NotificationType.appointmentCancelled:
+        case NotificationType.appointmentCompleted:
+        case NotificationType.appointmentReminder:
+          dbType = 'appointment';
+          break;
+        case NotificationType.newMessage:
+          dbType = 'message';
+          break;
+        case NotificationType.serviceUpdate:
+        case NotificationType.salonUpdate:
+        case NotificationType.reviewRequest:
+        case NotificationType.general:
+          dbType = 'system';
+          break;
+      }
+      
       final response = await _supabase
           .from('notifications')
           .insert({
             'user_id': userId,
-            'type': type.name,
+            'type': dbType,
             'title': title,
             'message': message,
             'data': data ?? {},

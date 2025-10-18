@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/app_theme.dart';
 import '../../providers/appointments_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/services_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../models/service_model.dart';
+import '../../services/app_api.dart';
 import '../../widgets/service_form_modal.dart';
 
 class OwnerHomeScreen extends ConsumerStatefulWidget {
@@ -62,9 +64,18 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
     _pulseAnimationController.repeat(reverse: true);
   }
 
-  void _loadData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(appointmentsProvider.notifier).loadAppointments();
+  void _loadData() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Get the authenticated salon owner
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // Get the salon ID for this owner
+        final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
+        if (salon != null) {
+          // Load appointments for the salon owner's salon
+          ref.read(appointmentsProvider.notifier).loadAppointmentsForSalon(salon.id);
+        }
+      }
       ref.read(chatProvider.notifier).loadMessagesForUser('owner_1');
       ref.read(servicesProvider.notifier).refreshServices();
     });
@@ -412,7 +423,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                   ),
                 ),
               TextButton(
-                  onPressed: () => _showComingSoon('View All Appointments'),
+                  onPressed: () => context.go('/owner-dashboard', extra: {'initialIndex': 2}),
                   child: const Text('View All', style: TextStyle(color: AppTheme.primaryMauve)),
               ),
             ],

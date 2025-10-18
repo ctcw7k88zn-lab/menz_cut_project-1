@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../providers/appointments_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/appointment_model.dart';
+import '../../services/app_api.dart';
 
 class OwnerServicesScreen extends ConsumerStatefulWidget {
   const OwnerServicesScreen({super.key});
@@ -50,9 +52,17 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
     _slideAnimationController.forward();
   }
 
-  void _loadData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(appointmentsProvider.notifier).loadAppointments();
+  void _loadData() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Get the authenticated salon owner
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // Get the salon ID for this owner
+        final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
+        if (salon != null) {
+          ref.read(appointmentsProvider.notifier).loadAppointmentsForSalon(salon.id);
+        }
+      }
     });
   }
 

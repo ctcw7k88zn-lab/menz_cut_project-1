@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -180,7 +181,74 @@ class AppApi {
       if (salon == null) throw Exception('Salon not found');
       return salon;
     } else {
-      return SupabaseService.getSalon(id);
+      return SupabaseService.getSalonById(id);
+    }
+  }
+
+  static Future<SalonModel?> getSalonByOwnerId(String ownerId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // For local mode, return a mock salon
+      return SalonModel(
+        id: 'salon_1',
+        ownerId: ownerId,
+        name: 'Elite Hair Studio',
+        description: 'Premium salon services',
+        address: '123 Main St',
+        phone: '+1234567890',
+        email: 'info@elitehair.com',
+        imageUrls: ['https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400'],
+        rating: 4.8,
+        reviewCount: 150,
+        categories: ['Haircut', 'Styling'],
+        openingHours: {'Monday': '9:00-18:00'},
+        latitude: 0.0,
+        longitude: 0.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      return SupabaseService.getSalonByOwnerId(ownerId);
+    }
+  }
+
+  static Future<SalonModel> createSalonForOwner(String ownerId, {
+    required String name,
+    required String description,
+    required String address,
+    String? phone,
+    String? email,
+  }) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // For local mode, return a mock salon
+      return SalonModel(
+        id: const Uuid().v4(),
+        ownerId: ownerId,
+        name: name,
+        description: description,
+        address: address,
+        phone: phone ?? '',
+        email: email ?? '',
+        imageUrls: [],
+        rating: 0.0,
+        reviewCount: 0,
+        categories: ['Haircut'],
+        openingHours: {'Monday': '9:00-18:00'},
+        latitude: 0.0,
+        longitude: 0.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      return SupabaseService.createSalonForOwner(
+        ownerId,
+        name: name,
+        description: description,
+        address: address,
+        phone: phone,
+        email: email,
+      );
     }
   }
 
@@ -251,6 +319,27 @@ class AppApi {
       await _realtimeService.emitServiceDeleted(serviceId);
     } else {
       await SupabaseService.deleteService(serviceId);
+    }
+  }
+
+  // Image upload methods
+  static Future<String> uploadServiceImage(String userId, Uint8List imageBytes, String fileName) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // For local mode, return a mock URL
+      return 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400';
+    } else {
+      return SupabaseService.uploadServiceImage(userId, imageBytes, fileName);
+    }
+  }
+
+  static Future<String> uploadProfileImage(String userId, Uint8List imageBytes, String fileName) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // For local mode, return a mock URL
+      return 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400';
+    } else {
+      return SupabaseService.uploadProfileImage(userId, imageBytes, fileName);
     }
   }
 
@@ -713,15 +802,4 @@ class AppApi {
     return tags;
   }
 
-  // ===== PROFILE IMAGE UPLOAD =====
-
-  static Future<String?> uploadProfileImage(File imageFile, String userId) async {
-    if (useLocal) {
-      await _simulateNetworkDelay();
-      // Mock image upload - return a placeholder URL
-      return 'https://via.placeholder.com/150/8B5CF6/FFFFFF?text=Profile';
-    } else {
-      return SupabaseService.uploadProfileImage(imageFile, userId);
-    }
-  }
 }

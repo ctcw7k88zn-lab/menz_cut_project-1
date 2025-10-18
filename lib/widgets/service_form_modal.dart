@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:typed_data';
+import 'dart:html' as html;
 import '../config/app_theme.dart';
 import '../models/service_model.dart';
+import '../providers/auth_provider.dart';
+import '../services/app_api.dart';
 
-class ServiceFormModal extends StatefulWidget {
+class ServiceFormModal extends ConsumerStatefulWidget {
   final ServiceModel? service;
   final Function(ServiceModel) onSave;
 
@@ -14,10 +19,10 @@ class ServiceFormModal extends StatefulWidget {
   });
 
   @override
-  State<ServiceFormModal> createState() => _ServiceFormModalState();
+  ConsumerState<ServiceFormModal> createState() => _ServiceFormModalState();
 }
 
-class _ServiceFormModalState extends State<ServiceFormModal> {
+class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -26,6 +31,9 @@ class _ServiceFormModalState extends State<ServiceFormModal> {
   String _selectedDuration = '30';
   String _selectedCategory = 'Haircut';
   String? _selectedImageUrl;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageFileName;
+  bool _isUploading = false;
 
   final List<String> _durations = ['15', '30', '45', '60', '90', '120'];
   final List<String> _categories = [
@@ -164,13 +172,21 @@ class _ServiceFormModalState extends State<ServiceFormModal> {
           height: 100,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: _sampleImages.length,
+            itemCount: _sampleImages.length + 1,
             itemBuilder: (context, index) {
+              if (index == _sampleImages.length) {
+                return _buildAddImageButton();
+              }
+              
               final imageUrl = _sampleImages[index];
-              final isSelected = _selectedImageUrl == imageUrl;
+              final isSelected = _selectedImageUrl == imageUrl && _selectedImageBytes == null;
               
               return GestureDetector(
-                onTap: () => setState(() => _selectedImageUrl = imageUrl),
+                onTap: () => setState(() {
+                  _selectedImageUrl = imageUrl;
+                  _selectedImageBytes = null;
+                  _selectedImageFileName = null;
+                }),
                 child: Container(
                   margin: const EdgeInsets.only(right: 12),
                   width: 100,
@@ -207,8 +223,102 @@ class _ServiceFormModalState extends State<ServiceFormModal> {
             },
           ),
         ),
+        // Show selected uploaded image
+        if (_selectedImageBytes != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            height: 120,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.primaryMauve, width: 2),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                _selectedImageBytes!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  Widget _buildAddImageButton() {
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Container(
+        width: 100,
+        height: 100,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.primaryMauve,
+            width: 2,
+            style: BorderStyle.solid,
+          ),
+          color: AppTheme.primaryMauve.withOpacity(0.1),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_photo_alternate,
+              color: AppTheme.primaryMauve,
+              size: 30,
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Add',
+              style: TextStyle(
+                color: AppTheme.primaryMauve,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      // For web, use HTML file input
+      final html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
+      uploadInput.accept = 'image/*';
+      uploadInput.click();
+
+      uploadInput.onChange.listen((e) {
+        final files = uploadInput.files;
+        if (files != null && files.isNotEmpty) {
+          final file = files[0];
+          final reader = html.FileReader();
+          
+          reader.onLoadEnd.listen((e) {
+            final bytes = reader.result as List<int>;
+            setState(() {
+              _selectedImageBytes = Uint8List.fromList(bytes);
+              _selectedImageFileName = file.name;
+              _selectedImageUrl = null; // Clear sample image selection
+            });
+          });
+          
+          reader.readAsArrayBuffer(file);
+        }
+      });
+    } catch (e) {
+      print('Image picker error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Image picker not available on web. Please use sample images.'),
+          backgroundColor: AppTheme.warningColor,
+        ),
+      );
+    }
   }
 
   Widget _buildNameField() {
@@ -373,7 +483,7 @@ class _ServiceFormModalState extends State<ServiceFormModal> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _saveService,
+        onPressed: _isUploading ? null : _saveService,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primaryMauve,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -381,46 +491,120 @@ class _ServiceFormModalState extends State<ServiceFormModal> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: Text(
-          widget.service != null ? 'Update Service' : 'Add Service',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: _isUploading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Text(
+                widget.service != null ? 'Update Service' : 'Add Service',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
 
-  void _saveService() {
+  void _saveService() async {
     if (_formKey.currentState!.validate()) {
-      final service = ServiceModel(
-        id: widget.service?.id ?? const Uuid().v4(),
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        price: double.parse(_priceController.text),
-        durationMinutes: int.parse(_selectedDuration),
-        category: _selectedCategory,
-        imageUrl: _selectedImageUrl,
-        salonId: 'salon_1',
-        createdAt: widget.service?.createdAt ?? DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      setState(() {
+        _isUploading = true;
+      });
 
-      widget.onSave(service);
-      Navigator.pop(context);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.service != null 
-                ? 'Service updated successfully!' 
-                : 'Service added successfully!'
+      try {
+        final authState = ref.read(authProvider);
+        if (authState.user == null) {
+          throw Exception('User not authenticated');
+        }
+
+        // Get or create salon for the owner
+        String salonId;
+        try {
+          print('Getting salon for user: ${authState.user!.id}');
+          final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
+          print('Salon result: $salon');
+          
+          if (salon != null) {
+            salonId = salon.id;
+            print('Using existing salon: $salonId');
+          } else {
+            print('No salon found, creating new one...');
+            // Create a salon for the owner if it doesn't exist
+            final newSalon = await AppApi.createSalonForOwner(
+              authState.user!.id,
+              name: authState.user!.fullName + "'s Salon",
+              description: 'Professional salon services',
+              address: '123 Main St', // Default address
+              phone: authState.user!.phone ?? '',
+              email: authState.user!.email,
+            );
+            salonId = newSalon.id;
+            print('Created new salon: $salonId');
+          }
+        } catch (e) {
+          print('Error getting salon: $e');
+          throw Exception('Failed to get salon: $e');
+        }
+
+        // Upload image if selected
+        String? imageUrl = _selectedImageUrl;
+        if (_selectedImageBytes != null && _selectedImageFileName != null) {
+          try {
+            imageUrl = await AppApi.uploadServiceImage(
+              authState.user!.id,
+              _selectedImageBytes!,
+              _selectedImageFileName!,
+            );
+          } catch (e) {
+            throw Exception('Failed to upload image: $e');
+          }
+        }
+
+        final service = ServiceModel(
+          id: widget.service?.id ?? const Uuid().v4(),
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          price: double.parse(_priceController.text),
+          durationMinutes: int.parse(_selectedDuration),
+          category: _selectedCategory,
+          imageUrl: imageUrl,
+          salonId: salonId,
+          createdAt: widget.service?.createdAt ?? DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        widget.onSave(service);
+        Navigator.pop(context);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.service != null 
+                  ? 'Service updated successfully!' 
+                  : 'Service added successfully!'
+            ),
+            backgroundColor: AppTheme.primaryMauve,
           ),
-          backgroundColor: AppTheme.primaryMauve,
-        ),
-      );
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      } finally {
+        setState(() {
+          _isUploading = false;
+        });
+      }
     }
   }
 }

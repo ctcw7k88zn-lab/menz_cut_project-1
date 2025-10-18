@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/salon_model.dart';
@@ -148,7 +149,7 @@ class SupabaseService {
     }
   }
 
-  static Future<SalonModel> getSalon(String id) async {
+  static Future<SalonModel> getSalonById(String id) async {
     try {
       final response = await _supabase
           .from('salons')
@@ -159,6 +160,62 @@ class SupabaseService {
       return _salonFromMap(response);
     } catch (e) {
       throw Exception('Failed to fetch salon: ${e.toString()}');
+    }
+  }
+
+  // Get salon by owner ID
+  static Future<SalonModel?> getSalonByOwnerId(String ownerId) async {
+    try {
+      print('SupabaseService: Getting salon for owner: $ownerId');
+      final response = await _supabase
+          .from('salons')
+          .select('*')
+          .eq('owner_id', ownerId)
+          .eq('is_active', true)
+          .maybeSingle();
+      
+      print('SupabaseService: Response: $response');
+      if (response == null) {
+        print('SupabaseService: No salon found for owner');
+        return null;
+      }
+      
+      final salon = _salonFromMap(response);
+      print('SupabaseService: Mapped salon: ${salon.id}');
+      return salon;
+    } catch (e) {
+      print('SupabaseService: Error fetching salon: $e');
+      throw Exception('Failed to fetch salon by owner: ${e.toString()}');
+    }
+  }
+
+  // Create salon for owner if it doesn't exist
+  static Future<SalonModel> createSalonForOwner(String ownerId, {
+    required String name,
+    required String description,
+    required String address,
+    String? phone,
+    String? email,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('salons')
+          .insert({
+            'owner_id': ownerId,
+            'name': name,
+            'description': description,
+            'address': address,
+            'city': address, // Using address as city for now
+            'phone': phone ?? '',
+            'email': email ?? '',
+            'is_active': true,
+          })
+          .select()
+          .single();
+      
+      return _salonFromMap(response);
+    } catch (e) {
+      throw Exception('Failed to create salon: ${e.toString()}');
     }
   }
 
@@ -284,6 +341,55 @@ class SupabaseService {
           .eq('id', serviceId);
     } catch (e) {
       throw Exception('Failed to delete service: ${e.toString()}');
+    }
+  }
+
+  // Image upload methods
+  static Future<String> uploadServiceImage(String userId, Uint8List imageBytes, String fileName) async {
+    try {
+      final fileExt = fileName.split('.').last;
+      final newFileName = '${const Uuid().v4()}.$fileExt';
+      final path = 'services/$userId/$newFileName';
+      
+      await _supabase.storage
+          .from('service-images')
+          .uploadBinary(path, imageBytes);
+      
+      final imageUrl = _supabase.storage
+          .from('service-images')
+          .getPublicUrl(path);
+      
+      return imageUrl;
+    } catch (e) {
+      throw Exception('Failed to upload image: ${e.toString()}');
+    }
+  }
+
+  static Future<String> uploadProfileImage(String userId, Uint8List imageBytes, String fileName) async {
+    try {
+      final fileExt = fileName.split('.').last;
+      final newFileName = '${const Uuid().v4()}.$fileExt';
+      final path = 'profiles/$userId/$newFileName';
+      
+      await _supabase.storage
+          .from('profile-pics')
+          .uploadBinary(path, imageBytes);
+      
+      final imageUrl = _supabase.storage
+          .from('profile-pics')
+          .getPublicUrl(path);
+      
+      return imageUrl;
+    } catch (e) {
+      throw Exception('Failed to upload profile image: ${e.toString()}');
+    }
+  }
+
+  static Future<void> deleteImage(String bucket, String path) async {
+    try {
+      await _supabase.storage.from(bucket).remove([path]);
+    } catch (e) {
+      throw Exception('Failed to delete image: ${e.toString()}');
     }
   }
 
@@ -492,10 +598,6 @@ class SupabaseService {
     return await uploadFile('salon-images', path, file);
   }
 
-  static Future<String> uploadServiceImage(String serviceId, File file) async {
-    final path = '$serviceId/image_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    return await uploadFile('service-images', path, file);
-  }
 
   static Future<String> uploadAIImage(String userId, File file) async {
     final path = '$userId/ai_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -656,23 +758,44 @@ class SupabaseService {
   }
 
   static SalonModel _salonFromMap(Map<String, dynamic> data) {
+    // Safely handle imageUrls
+    List<String> imageUrls = [];
+    if (data['logo_url'] != null && data['logo_url'].toString().isNotEmpty) {
+      imageUrls.add(data['logo_url'].toString());
+    }
+    if (data['banner_url'] != null && data['banner_url'].toString().isNotEmpty) {
+      imageUrls.add(data['banner_url'].toString());
+    }
+
+    // Safely handle openingHours
+    Map<String, String> openingHours = {'Monday': '9:00-18:00'};
+    if (data['opening_hours'] != null) {
+      try {
+        if (data['opening_hours'] is Map) {
+          openingHours = Map<String, String>.from(data['opening_hours'] as Map);
+        }
+      } catch (e) {
+        print('Error parsing opening_hours: $e');
+      }
+    }
+
     return SalonModel(
-      id: data['id'],
-      ownerId: data['owner_id'],
-      name: data['name'],
-      description: data['description'] ?? '',
-      address: data['address'] ?? '',
-      phone: data['phone'],
-      email: data['email'],
-      imageUrls: ([data['logo_url'] ?? '', data['banner_url'] ?? ''] as List<String>).where((url) => url.isNotEmpty).toList(),
+      id: data['id'].toString(),
+      ownerId: data['owner_id'].toString(),
+      name: data['name'].toString(),
+      description: data['description']?.toString() ?? '',
+      address: data['address']?.toString() ?? '',
+      phone: data['phone']?.toString() ?? '',
+      email: data['email']?.toString() ?? '',
+      imageUrls: imageUrls,
       rating: (data['rating'] ?? 0.0).toDouble(),
       reviewCount: data['review_count'] ?? 0,
-      categories: (data['categories'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? ['Haircut'],
-      openingHours: Map<String, String>.from(data['opening_hours'] ?? {'Monday': '9:00-18:00'}),
+      categories: ['Haircut'], // Default category since salons table doesn't have categories field
+      openingHours: openingHours,
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
-      createdAt: DateTime.parse(data['created_at']),
-      updatedAt: DateTime.parse(data['updated_at']),
+      createdAt: DateTime.parse(data['created_at'].toString()),
+      updatedAt: DateTime.parse(data['updated_at'].toString()),
     );
   }
 
@@ -1130,30 +1253,6 @@ class SupabaseService {
     }
   }
 
-  // ===== PROFILE IMAGE UPLOAD =====
-
-  /// Upload profile image to Supabase Storage
-  static Future<String?> uploadProfileImage(File imageFile, String userId) async {
-    try {
-      final fileName = 'profile_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final filePath = fileName;
-
-      // Upload file to storage using profile-pics bucket
-      await _supabase.storage
-          .from('profile-pics')
-          .upload(filePath, imageFile);
-
-      // Get public URL
-      final imageUrl = _supabase.storage
-          .from('profile-pics')
-          .getPublicUrl(filePath);
-
-      return imageUrl;
-    } catch (e) {
-      print('Error uploading profile image: $e');
-      return null;
-    }
-  }
   
 }
 

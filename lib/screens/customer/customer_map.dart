@@ -902,7 +902,7 @@ class _CustomerMapScreenState extends ConsumerState<CustomerMapScreen>
                             ),
                             child: ElevatedButton(
                               onPressed: () {
-                                context.go('/salon-detail', extra: _selectedSalon);
+                                context.go('/salon-detail', extra: {'salon': _selectedSalon});
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,

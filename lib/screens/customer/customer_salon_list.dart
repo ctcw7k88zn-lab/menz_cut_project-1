@@ -294,14 +294,14 @@ class _CustomerSalonListScreenState extends ConsumerState<CustomerSalonListScree
                               child: SalonCard(
                                 salon: salon,
                                 onTap: () {
-                                  context.go('/salon-detail', extra: salon);
+                                  context.go('/salon-detail', extra: {'salon': salon});
                                 },
                               ),
                             )
                           : SalonListCard(
                               salon: salon,
                               onTap: () {
-                                context.go('/salon-detail', extra: salon);
+                                context.go('/salon-detail', extra: {'salon': salon});
                               },
                             ),
                     );

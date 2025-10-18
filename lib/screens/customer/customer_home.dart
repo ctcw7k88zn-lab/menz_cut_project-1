@@ -300,7 +300,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                               child: SalonCard(
                                 salon: salons[index],
                                 onTap: () {
-                                  context.go('/salon-detail', extra: salons[index]);
+                                  context.go('/salon-detail', extra: {'salon': salons[index]});
                                 },
                               ),
                             );
@@ -447,7 +447,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                           margin: const EdgeInsets.only(bottom: 16),
                           child: AppTheme.glassCard(
                             onTap: () {
-                              context.go('/salon-detail', extra: salon);
+                              context.go('/salon-detail', extra: {'salon': salon});
                             },
                             child: Row(
                               children: [

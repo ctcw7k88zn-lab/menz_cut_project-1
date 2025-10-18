@@ -44,12 +44,12 @@ class SalonCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             child: ImageCacheService.salonImage(
               imageUrl: salon.primaryImageUrl,
-              height: 160,
+              height: 140, // Reduced from 160
               width: double.infinity,
             ),
           ),
         ),
-        const SizedBox(height: AppTheme.spacing8),
+        const SizedBox(height: 12),
         
         // Content
         _buildContent(),
@@ -80,9 +80,11 @@ class SalonCard extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         // Name and Rating
         Row(
           children: [
@@ -129,13 +131,13 @@ class SalonCard extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: AppTheme.spacing4),
+        const SizedBox(height: 8),
         
         // Rating and Reviews
         Row(
           children: [
             _buildRatingStars(salon.rating),
-            const SizedBox(width: AppTheme.spacing8),
+            const SizedBox(width: 8),
             Text(
               salon.formattedRating,
               style: AppTheme.bodyMedium.copyWith(
@@ -143,7 +145,7 @@ class SalonCard extends StatelessWidget {
                 color: AppTheme.textPrimary,
               ),
             ),
-            const SizedBox(width: AppTheme.spacing4),
+            const SizedBox(width: 4),
             Text(
               '(${salon.reviewCount} reviews)',
               style: AppTheme.bodySmall.copyWith(
@@ -152,7 +154,7 @@ class SalonCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppTheme.spacing8),
+        const SizedBox(height: 12),
         
         // Address
         Row(
@@ -162,7 +164,7 @@ class SalonCard extends StatelessWidget {
               size: 16,
               color: AppTheme.textSecondary,
             ),
-            const SizedBox(width: AppTheme.spacing4),
+            const SizedBox(width: 4),
             Expanded(
               child: Text(
                 salon.address,
@@ -175,20 +177,20 @@ class SalonCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppTheme.spacing8),
+        const SizedBox(height: 12),
         
         // Categories and Status
         Row(
           children: [
             Expanded(
               child: Wrap(
-                spacing: AppTheme.spacing4,
-                runSpacing: AppTheme.spacing4,
+                spacing: 8,
+                runSpacing: 8,
                 children: salon.categories.take(2).map((category) {
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacing8,
-                      vertical: AppTheme.spacing4,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryMauve.withOpacity(0.1),
@@ -227,7 +229,7 @@ class SalonCard extends StatelessWidget {
         ),
         
         // Open/Closed Status
-        const SizedBox(height: AppTheme.spacing8),
+        const SizedBox(height: 12),
         Row(
           children: [
             Container(
@@ -238,7 +240,7 @@ class SalonCard extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: AppTheme.spacing8),
+            const SizedBox(width: 8),
             Text(
               salon.isOpen ? 'Open now' : 'Closed',
               style: AppTheme.bodySmall.copyWith(
@@ -259,6 +261,7 @@ class SalonCard extends StatelessWidget {
           ],
         ),
       ],
+    ),
     );
   }
 
@@ -335,19 +338,19 @@ class SalonListCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: AppTheme.spacing4),
+                const SizedBox(height: 8),
                 
                 Row(
                   children: [
                     _buildRatingStars(salon.rating),
-                    const SizedBox(width: AppTheme.spacing8),
+                    const SizedBox(width: 8),
                     Text(
                       salon.formattedRating,
                       style: AppTheme.bodyMedium.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: AppTheme.spacing4),
+                    const SizedBox(width: 4),
                     Text(
                       '(${salon.reviewCount})',
                       style: AppTheme.bodySmall.copyWith(
@@ -356,7 +359,7 @@ class SalonListCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTheme.spacing4),
+                const SizedBox(height: 8),
                 
                 Text(
                   salon.address,
@@ -366,7 +369,7 @@ class SalonListCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: AppTheme.spacing4),
+                const SizedBox(height: 8),
                 
                 Row(
                   children: [
@@ -378,7 +381,7 @@ class SalonListCard extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: AppTheme.spacing8),
+                    const SizedBox(width: 8),
                     Text(
                       salon.isOpen ? 'Open' : 'Closed',
                       style: AppTheme.bodySmall.copyWith(

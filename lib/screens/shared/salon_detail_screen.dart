@@ -290,20 +290,17 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
             ),
 
             // Content
-            SliverToBoxAdapter(
+            SliverFillRemaining(
               child: Padding(
                 padding: EdgeInsets.all(AppTheme.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.8, // Increased height from 0.6 to 0.8
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      SingleChildScrollView(child: _buildAboutTab()),
-                      SingleChildScrollView(child: _buildServicesTab(services)),
-                      SingleChildScrollView(child: _buildReviewsTab()),
-                      SingleChildScrollView(child: _buildGalleryTab()),
-                    ],
-                  ),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    SingleChildScrollView(child: _buildAboutTab()),
+                    SingleChildScrollView(child: _buildServicesTab(services)),
+                    SingleChildScrollView(child: _buildReviewsTab()),
+                    SingleChildScrollView(child: _buildGalleryTab()),
+                  ],
                 ),
               ),
             ),
@@ -713,14 +710,19 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                     children: [
                       Text(
                         'Selected Service: ${_selectedService!.name}',
-                        style: AppTheme.bodyMedium.copyWith(
+                        style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.primaryMauve,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         'Duration: ${_selectedService!.durationMinutes} minutes • Price: \$${_selectedService!.price.toStringAsFixed(2)}',
-                        style: AppTheme.bodySmall,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                     ],
                   ),
@@ -869,55 +871,75 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   Widget _buildReviewCard(Map<String, dynamic> review) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: AppTheme.glassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundImage: NetworkImage(review['image']),
-                  onBackgroundImageError: (exception, stackTrace) {
-                    // Handle image error
-                  },
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        review['name'],
-                        style: AppTheme.bodyMedium.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundImage: NetworkImage(review['image']),
+                onBackgroundImageError: (exception, stackTrace) {
+                  // Handle image error
+                },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review['name'],
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          RatingStars(rating: review['rating']),
-                          const SizedBox(width: 8),
-                          Text(
-                            review['date'],
-                            style: AppTheme.bodySmall.copyWith(
-                              color: AppTheme.textSecondary,
-                            ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        RatingStars(rating: review['rating']),
+                        const SizedBox(width: 8),
+                        Text(
+                          review['date'],
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 0, right: 0),
+            child: Text(
               review['comment'],
-              style: AppTheme.bodyMedium,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: AppTheme.textPrimary,
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

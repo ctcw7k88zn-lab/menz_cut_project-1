@@ -11,13 +11,19 @@ class ServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
 
   @override
   Future<List<ServiceModel>> build() async {
-    // Initialize services from local storage
-    final services = await AppApi.getServices();
+    // Initialize services from local storage for the current user's salon
+    final services = await AppApi.getServicesBySalonOwner(_getCurrentUserId());
     
     // Subscribe to realtime updates
     _subscribeToRealtimeUpdates();
     
     return services;
+  }
+
+  String _getCurrentUserId() {
+    // Get current user ID from auth state
+    // This should be implemented based on your auth system
+    return '119a93f2-d44f-4d84-9407-fe0802a01621'; // Temporary hardcoded for testing
   }
 
   /// Subscribe to realtime service updates
@@ -55,7 +61,7 @@ class ServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
   Future<void> loadServices() async {
     state = const AsyncValue.loading();
     try {
-      final services = await AppApi.getServices();
+      final services = await AppApi.getServicesBySalonOwner(_getCurrentUserId());
       state = AsyncValue.data(services);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);

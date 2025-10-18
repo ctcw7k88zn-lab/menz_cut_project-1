@@ -287,6 +287,21 @@ class SupabaseService {
     }
   }
 
+  static Future<List<ServiceModel>> getServicesBySalonOwner(String ownerId) async {
+    try {
+      // First get the salon for this owner
+      final salon = await getSalonByOwnerId(ownerId);
+      if (salon == null) {
+        return []; // No salon found for this owner
+      }
+      
+      // Then get services for this salon
+      return await getServicesBySalon(salon.id);
+    } catch (e) {
+      throw Exception('Failed to fetch services by owner: ${e.toString()}');
+    }
+  }
+
   static Future<ServiceModel> createService(ServiceModel service) async {
     try {
       final response = await _supabase

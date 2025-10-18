@@ -278,6 +278,15 @@ class AppApi {
     }
   }
 
+  static Future<List<ServiceModel>> getServicesBySalonOwner(String ownerId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      return await LocalDataService.getServicesBySalon('salon_1'); // Mock salon ID
+    } else {
+      return SupabaseService.getServicesBySalonOwner(ownerId);
+    }
+  }
+
   static Future<ServiceModel> addService(ServiceModel service) async {
     if (useLocal) {
       await _simulateNetworkDelay();

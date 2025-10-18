@@ -480,8 +480,9 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
   List<Widget> _buildActionButtons(AppointmentModel appointment) {
     List<Widget> buttons = [];
 
-    switch (_selectedTabIndex) {
-      case 0: // Upcoming
+    // Show different buttons based on appointment status, not just tab index
+    switch (appointment.status) {
+      case AppointmentStatus.pending:
         buttons = [
           Expanded(
             child: _buildActionButton(
@@ -499,8 +500,8 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
               Colors.red,
               () => _rejectAppointment(appointment),
             ),
-                ),
-                const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildActionButton(
               'Reschedule',
@@ -511,7 +512,37 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
           ),
         ];
         break;
-      case 1: // Completed
+      case AppointmentStatus.confirmed:
+        buttons = [
+          Expanded(
+            child: _buildActionButton(
+              'Complete',
+              Icons.check_circle,
+              Colors.green,
+              () => _completeAppointment(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionButton(
+              'Cancel',
+              Icons.cancel,
+              Colors.red,
+              () => _cancelAppointment(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionButton(
+              'Reschedule',
+              Icons.schedule,
+              Colors.blue,
+              () => _rescheduleAppointment(appointment),
+            ),
+          ),
+        ];
+        break;
+      case AppointmentStatus.completed:
         buttons = [
           Expanded(
             child: _buildActionButton(
@@ -519,9 +550,9 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
               Icons.visibility,
               Colors.blue,
               () => _viewAppointmentDetails(appointment),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildActionButton(
               'Add Review',
@@ -532,27 +563,29 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
           ),
         ];
         break;
-      case 2: // Cancelled
+      case AppointmentStatus.cancelled:
         buttons = [
           Expanded(
             child: _buildActionButton(
-              'Reschedule',
-              Icons.schedule,
+              'View Details',
+              Icons.visibility,
               Colors.blue,
-              () => _rescheduleAppointment(appointment),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildActionButton(
-              'Delete',
-              Icons.delete,
-              Colors.red,
-              () => _deleteAppointment(appointment),
+              () => _viewAppointmentDetails(appointment),
             ),
           ),
         ];
         break;
+      default:
+        buttons = [
+          Expanded(
+            child: _buildActionButton(
+              'View Details',
+              Icons.visibility,
+              Colors.blue,
+              () => _viewAppointmentDetails(appointment),
+            ),
+          ),
+        ];
     }
 
     return buttons;
@@ -779,6 +812,52 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to reject appointment: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _completeAppointment(AppointmentModel appointment) async {
+    try {
+      await ref.read(appointmentsProvider.notifier).updateAppointmentStatus(
+        appointment.id,
+        AppointmentStatus.completed,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Completed appointment for ${appointment.customerDetails?['name'] ?? 'Customer'}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to complete appointment: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _cancelAppointment(AppointmentModel appointment) async {
+    try {
+      await ref.read(appointmentsProvider.notifier).updateAppointmentStatus(
+        appointment.id,
+        AppointmentStatus.cancelled,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cancelled appointment for ${appointment.customerDetails?['name'] ?? 'Customer'}'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to cancel appointment: $e'),
           backgroundColor: Colors.red,
         ),
       );

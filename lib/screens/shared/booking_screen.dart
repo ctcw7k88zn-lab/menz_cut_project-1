@@ -24,8 +24,6 @@ class BookingScreen extends ConsumerStatefulWidget {
 class _BookingScreenState extends ConsumerState<BookingScreen>
     with TickerProviderStateMixin {
   late PageController _pageController;
-  late AnimationController _successAnimationController;
-  late Animation<double> _successScaleAnimation;
   
   int _currentStep = 0;
   ServiceModel? _selectedService;
@@ -34,7 +32,6 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
   String? _selectedStaff;
   String? _promoCode;
   String _notes = '';
-  bool _isBooking = false;
 
   // Mock available times
   final List<TimeOfDay> _availableTimes = [
@@ -90,25 +87,25 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
   void initState() {
     super.initState();
     _pageController = PageController();
-    _successAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _successScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _successAnimationController, curve: Curves.elasticOut),
-    );
 
     // Set initial service if provided
     if (widget.service != null) {
       _selectedService = widget.service;
       _currentStep = 1; // Skip service selection
+      // Navigate to the date/time selection page
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageController.animateToPage(
+          1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      });
     }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
-    _successAnimationController.dispose();
     super.dispose();
   }
 
@@ -443,40 +440,77 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           const SizedBox(height: 24),
 
           // Date Selection
-          AppTheme.glassCard(
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Select Date',
-                  style: AppTheme.heading3,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryMauve.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_today,
+                        color: AppTheme.primaryMauve,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Select Date',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 SizedBox(
-                  height: 100,
+                  height: 120,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: 7,
+                    itemCount: 14, // Show 2 weeks
                     itemBuilder: (context, index) {
                       final date = DateTime.now().add(Duration(days: index));
-                      final isSelected = _selectedDate?.day == date.day;
+                      final isSelected = _selectedDate?.day == date.day && _selectedDate?.month == date.month;
                       final isToday = index == 0;
+                      final isUnavailable = _isDateUnavailable(date);
                       
                       return GestureDetector(
-                        onTap: () {
+                        onTap: isUnavailable ? null : () {
                           setState(() {
                             _selectedDate = date;
+                            _selectedTime = null; // Reset time when date changes
                           });
                         },
                         child: Container(
-                          width: 80,
+                          width: 70,
                           margin: const EdgeInsets.only(right: 12),
                           child: Column(
                             children: [
                               Text(
                                 _getDayName(date.weekday),
-                                style: AppTheme.bodySmall.copyWith(
-                                  color: AppTheme.textSecondary,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isUnavailable ? Colors.grey[400] : AppTheme.textSecondary,
+                                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -484,28 +518,61 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: isSelected 
-                                      ? AppTheme.primaryMauve 
-                                      : isToday 
-                                          ? AppTheme.primaryMauve.withOpacity(0.1)
-                                          : Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: isUnavailable 
+                                      ? Colors.grey[200]
+                                      : isSelected 
+                                          ? AppTheme.primaryMauve 
+                                          : isToday 
+                                              ? AppTheme.primaryMauve.withOpacity(0.1)
+                                              : Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(12),
                                   border: isSelected 
                                       ? Border.all(color: AppTheme.primaryMauve, width: 2)
                                       : null,
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    date.day.toString(),
-                                    style: AppTheme.bodyMedium.copyWith(
-                                      color: isSelected 
-                                          ? Colors.white 
-                                          : isToday 
-                                              ? AppTheme.primaryMauve
-                                              : AppTheme.textSecondary,
-                                      fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                                child: Stack(
+                                  children: [
+                                    Center(
+                                      child: Text(
+                                        date.day.toString(),
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: isUnavailable 
+                                              ? Colors.grey[400]
+                                              : isSelected 
+                                                  ? Colors.white 
+                                                  : isToday 
+                                                      ? AppTheme.primaryMauve
+                                                      : AppTheme.textSecondary,
+                                          fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (isUnavailable)
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(12),
+                                            color: Colors.red.withOpacity(0.1),
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.close,
+                                              color: Colors.red,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${date.month}/${date.day}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isUnavailable ? Colors.grey[400] : AppTheme.textSecondary,
                                 ),
                               ),
                             ],
@@ -521,56 +588,143 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           const SizedBox(height: 24),
 
           // Time Selection
-          AppTheme.glassCard(
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Select Time',
-                  style: AppTheme.heading3,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryMauve.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.access_time,
+                        color: AppTheme.primaryMauve,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Select Time',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 2.5,
-                  ),
-                  itemCount: _availableTimes.length,
-                  itemBuilder: (context, index) {
-                    final time = _availableTimes[index];
-                    final isSelected = _selectedTime?.hour == time.hour && _selectedTime?.minute == time.minute;
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedTime = time;
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.primaryMauve : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isSelected ? AppTheme.primaryMauve : Colors.grey[300]!,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            time.format(context),
-                            style: AppTheme.bodySmall.copyWith(
-                              color: isSelected ? Colors.white : AppTheme.textSecondary,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
+                const SizedBox(height: 20),
+                if (_selectedDate == null)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Please select a date first',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 16,
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  )
+                else
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 2.5,
+                    ),
+                    itemCount: _availableTimes.length,
+                    itemBuilder: (context, index) {
+                      final time = _availableTimes[index];
+                      final isSelected = _selectedTime?.hour == time.hour && _selectedTime?.minute == time.minute;
+                      final isUnavailable = _isTimeSlotUnavailable(_selectedDate!, time);
+                      
+                      return GestureDetector(
+                        onTap: isUnavailable ? null : () {
+                          setState(() {
+                            _selectedTime = time;
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isUnavailable 
+                                ? Colors.grey[200]
+                                : isSelected 
+                                    ? AppTheme.primaryMauve 
+                                    : Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isUnavailable 
+                                  ? Colors.grey[300]!
+                                  : isSelected 
+                                      ? AppTheme.primaryMauve 
+                                      : Colors.grey[300]!,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: Text(
+                                  time.format(context),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isUnavailable 
+                                        ? Colors.grey[400]
+                                        : isSelected 
+                                            ? Colors.white 
+                                            : AppTheme.textSecondary,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                              if (isUnavailable)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      color: Colors.red.withOpacity(0.1),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.close,
+                                        color: Colors.red,
+                                        size: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
           ),
@@ -894,10 +1048,6 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
   }
 
   void _confirmBooking() async {
-    setState(() {
-      _isBooking = true;
-    });
-
     try {
       // Simulate booking process
       await Future.delayed(const Duration(seconds: 2));
@@ -963,7 +1113,6 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
       );
 
       // Show success animation
-      _successAnimationController.forward();
 
       // Navigate to appointments
       await Future.delayed(const Duration(seconds: 2));
@@ -976,16 +1125,55 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           backgroundColor: AppTheme.errorColor,
         ),
       );
-    } finally {
-      setState(() {
-        _isBooking = false;
-      });
     }
   }
 
   String _getDayName(int weekday) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days[weekday - 1];
+  }
+
+  // Mock unavailable dates (for demonstration)
+  bool _isDateUnavailable(DateTime date) {
+    // Example: Make weekends unavailable
+    if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
+      return true;
+    }
+    
+    // Example: Make certain dates unavailable (e.g., holidays)
+    final unavailableDates = [
+      DateTime(2024, 12, 25), // Christmas
+      DateTime(2024, 1, 1),   // New Year
+      DateTime(2024, 7, 4),   // Independence Day
+    ];
+    
+    return unavailableDates.any((unavailableDate) => 
+      date.year == unavailableDate.year &&
+      date.month == unavailableDate.month &&
+      date.day == unavailableDate.day
+    );
+  }
+
+  // Mock unavailable time slots (for demonstration)
+  bool _isTimeSlotUnavailable(DateTime date, TimeOfDay time) {
+    // Example: Make certain time slots unavailable
+    final unavailableSlots = [
+      {'date': DateTime(2024, 1, 15), 'time': const TimeOfDay(hour: 9, minute: 0)},
+      {'date': DateTime(2024, 1, 15), 'time': const TimeOfDay(hour: 10, minute: 0)},
+      {'date': DateTime(2024, 1, 16), 'time': const TimeOfDay(hour: 14, minute: 0)},
+      {'date': DateTime(2024, 1, 16), 'time': const TimeOfDay(hour: 15, minute: 0)},
+    ];
+    
+    return unavailableSlots.any((slot) {
+      final slotDate = slot['date'] as DateTime;
+      final slotTime = slot['time'] as TimeOfDay;
+      
+      return date.year == slotDate.year &&
+             date.month == slotDate.month &&
+             date.day == slotDate.day &&
+             time.hour == slotTime.hour &&
+             time.minute == slotTime.minute;
+    });
   }
 
   String _formatDate(DateTime date) {

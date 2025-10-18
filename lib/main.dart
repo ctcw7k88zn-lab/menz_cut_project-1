@@ -17,6 +17,7 @@ import 'screens/customer/customer_home.dart';
 import 'screens/customer/customer_appointments.dart';
 import 'screens/customer/customer_profile.dart';
 import 'screens/customer/customer_map.dart';
+import 'screens/customer/customer_salon_list.dart';
 import 'screens/customer/ai_hair_suggestions.dart';
 import 'screens/owner/owner_dashboard.dart';
 import 'screens/owner/owner_profile.dart';
@@ -133,6 +134,10 @@ class _SalonAppState extends ConsumerState<SalonApp> {
         GoRoute(
           path: '/customer-map',
           builder: (context, state) => const CustomerMapScreen(),
+        ),
+        GoRoute(
+          path: '/customer-salon-list',
+          builder: (context, state) => const CustomerSalonListScreen(),
         ),
         GoRoute(
           path: '/ai-hair-suggestions',

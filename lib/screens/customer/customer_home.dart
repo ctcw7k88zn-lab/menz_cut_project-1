@@ -266,7 +266,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                         ),
                         TextButton(
                           onPressed: () {
-                            context.go('/customer-map');
+                            context.go('/customer-salon-list');
                           },
                           child: const Text('See All'),
                         ),

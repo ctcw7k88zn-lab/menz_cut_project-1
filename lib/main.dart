@@ -30,16 +30,20 @@ void main() async {
   
   try {
     // Load environment variables
-    await dotenv.load(fileName: ".env");
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      print('No .env file found, using default values');
+    }
     
-    // Initialize Supabase with environment variables
+    // Initialize Supabase with environment variables or defaults
     await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL'] ?? '',
-      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+      url: dotenv.env['SUPABASE_URL'] ?? 'http://192.168.1.8:54321',
+      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
     );
     
     print('✅ Supabase initialized successfully');
-    print('🔗 Supabase URL: ${dotenv.env['SUPABASE_URL']}');
+    print('🔗 Supabase URL: ${dotenv.env['SUPABASE_URL'] ?? 'http://192.168.1.8:54321'}');
     print('🔑 Using Supabase backend: ${!AppEnv.enableMock}');
     
     // Initialize local data service (Hive) - keep for fallback

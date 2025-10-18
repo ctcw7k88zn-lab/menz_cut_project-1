@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:html' as html;
 import '../config/app_theme.dart';
@@ -205,18 +206,40 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
                       ),
                     ] : null,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppTheme.primaryMauve,
-                          child: const Icon(Icons.image, color: Colors.white, size: 30),
-                        );
-                      },
-                    ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: 100,
+                          height: 100,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppTheme.primaryMauve,
+                              child: const Icon(Icons.image, color: Colors.white, size: 30),
+                            );
+                          },
+                        ),
+                      ),
+                      if (isSelected)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryMauve,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
@@ -231,13 +254,111 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
             height: 120,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.primaryMauve, width: 2),
+              border: Border.all(color: AppTheme.successColor, width: 2),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(
-                _selectedImageBytes!,
-                fit: BoxFit.cover,
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(
+                    _selectedImageBytes!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedImageBytes = null;
+                          _selectedImageFileName = null;
+                        });
+                      },
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Custom Image Selected',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        // Add custom image button
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              print('🖱️ Add Custom Image button clicked');
+              _pickImage();
+            },
+            icon: const Icon(Icons.add_a_photo),
+            label: const Text('Add Custom Image'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryMauve,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        // Clear all images button
+        if (_selectedImageUrl != null || _selectedImageBytes != null) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _selectedImageUrl = null;
+                  _selectedImageBytes = null;
+                  _selectedImageFileName = null;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🗑️ All images cleared'),
+                    backgroundColor: AppTheme.warningColor,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Clear All Images'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.warningColor,
+                side: BorderSide(color: AppTheme.warningColor),
               ),
             ),
           ),
@@ -248,7 +369,10 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
 
   Widget _buildAddImageButton() {
     return GestureDetector(
-      onTap: _pickImage,
+      onTap: () {
+        print('🖱️ Upload Image button clicked');
+        _pickImage();
+      },
       child: Container(
         width: 100,
         height: 100,
@@ -257,26 +381,43 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: AppTheme.primaryMauve,
-            width: 2,
+            width: 3,
             style: BorderStyle.solid,
           ),
-          color: AppTheme.primaryMauve.withOpacity(0.1),
+          color: AppTheme.primaryMauve.withOpacity(0.15),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryMauve.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.add_photo_alternate,
+              Icons.cloud_upload,
               color: AppTheme.primaryMauve,
-              size: 30,
+              size: 36,
             ),
-            SizedBox(height: 4),
+            SizedBox(height: 6),
             Text(
-              'Add',
+              'UPLOAD',
               style: TextStyle(
                 color: AppTheme.primaryMauve,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              'IMAGE',
+              style: TextStyle(
+                color: AppTheme.primaryMauve,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -287,35 +428,125 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
 
   Future<void> _pickImage() async {
     try {
-      // For web, use HTML file input
+      print('🖼️ Image picker triggered');
+      
+      // Create a hidden file input element
       final html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
       uploadInput.accept = 'image/*';
-      uploadInput.click();
-
-      uploadInput.onChange.listen((e) {
+      uploadInput.multiple = false;
+      uploadInput.style.display = 'none';
+      
+      // Add to DOM
+      html.document.body?.append(uploadInput);
+      
+      // Create a completer to handle the async file selection
+      final completer = Completer<void>();
+      
+      // Listen for file selection
+      uploadInput.onChange.listen((e) async {
+        print('📁 File selection changed');
         final files = uploadInput.files;
         if (files != null && files.isNotEmpty) {
           final file = files[0];
+          print('📄 File selected: ${file.name}, size: ${file.size} bytes');
+          
+          // Validate file type
+          if (!file.type.startsWith('image/')) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Please select an image file'),
+                backgroundColor: AppTheme.errorColor,
+              ),
+            );
+            uploadInput.remove();
+            completer.complete();
+            return;
+          }
+          
+          // Validate file size (max 10MB)
+          if (file.size > 10 * 1024 * 1024) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Image file too large. Max size: 10MB'),
+                backgroundColor: AppTheme.errorColor,
+              ),
+            );
+            uploadInput.remove();
+            completer.complete();
+            return;
+          }
+          
           final reader = html.FileReader();
           
           reader.onLoadEnd.listen((e) {
-            final bytes = reader.result as List<int>;
-            setState(() {
-              _selectedImageBytes = Uint8List.fromList(bytes);
-              _selectedImageFileName = file.name;
-              _selectedImageUrl = null; // Clear sample image selection
-            });
+            print('✅ File read completed');
+            try {
+              final bytes = reader.result as List<int>;
+              setState(() {
+                _selectedImageBytes = Uint8List.fromList(bytes);
+                _selectedImageFileName = file.name;
+                _selectedImageUrl = null; // Clear sample image selection
+              });
+              
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ Image selected: ${file.name}'),
+                  backgroundColor: AppTheme.successColor,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+              
+              print('🎉 Image successfully loaded into memory');
+            } catch (e) {
+              print('❌ Error processing image: $e');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('❌ Failed to process image: $e'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+            
+            // Remove from DOM
+            uploadInput.remove();
+            completer.complete();
           });
           
+          reader.onError.listen((e) {
+            print('❌ File read error: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Failed to read image file'),
+                backgroundColor: AppTheme.errorColor,
+              ),
+            );
+            uploadInput.remove();
+            completer.complete();
+          });
+          
+          // Read the file
           reader.readAsArrayBuffer(file);
+        } else {
+          print('❌ No files selected');
+          uploadInput.remove();
+          completer.complete();
         }
       });
+      
+      // Trigger file selection dialog
+      print('🖱️ Triggering file selection dialog');
+      uploadInput.click();
+      
+      // Wait for file selection to complete
+      await completer.future;
+      
     } catch (e) {
-      print('Image picker error: $e');
+      print('❌ Image picker error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Image picker not available on web. Please use sample images.'),
-          backgroundColor: AppTheme.warningColor,
+          content: Text('❌ Failed to open image picker: $e'),
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }
@@ -557,14 +788,19 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
         String? imageUrl = _selectedImageUrl;
         if (_selectedImageBytes != null && _selectedImageFileName != null) {
           try {
+            print('Uploading image: ${_selectedImageFileName} (${_selectedImageBytes!.length} bytes)');
             imageUrl = await AppApi.uploadServiceImage(
               authState.user!.id,
               _selectedImageBytes!,
               _selectedImageFileName!,
             );
+            print('Image uploaded successfully: $imageUrl');
           } catch (e) {
+            print('Image upload failed: $e');
             throw Exception('Failed to upload image: $e');
           }
+        } else {
+          print('No image selected for upload');
         }
 
         final service = ServiceModel(

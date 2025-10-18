@@ -347,20 +347,30 @@ class SupabaseService {
   // Image upload methods
   static Future<String> uploadServiceImage(String userId, Uint8List imageBytes, String fileName) async {
     try {
+      print('SupabaseService: Starting image upload for user: $userId');
+      print('SupabaseService: File name: $fileName, Size: ${imageBytes.length} bytes');
+      
       final fileExt = fileName.split('.').last;
       final newFileName = '${const Uuid().v4()}.$fileExt';
       final path = 'services/$userId/$newFileName';
+      
+      print('SupabaseService: Uploading to path: $path');
       
       await _supabase.storage
           .from('service-images')
           .uploadBinary(path, imageBytes);
       
+      print('SupabaseService: Upload completed successfully');
+      
       final imageUrl = _supabase.storage
           .from('service-images')
           .getPublicUrl(path);
       
+      print('SupabaseService: Generated public URL: $imageUrl');
+      
       return imageUrl;
     } catch (e) {
+      print('SupabaseService: Image upload failed: $e');
       throw Exception('Failed to upload image: ${e.toString()}');
     }
   }

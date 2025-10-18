@@ -88,7 +88,7 @@ class SalonModel extends HiveObject {
   });
 
   // Compatibility getter
-  String get primaryImageUrl => imageUrls.isNotEmpty ? imageUrls.first : '';
+  String get primaryImageUrl => imageUrls.isNotEmpty ? imageUrls.first : 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400';
 
   factory SalonModel.fromJson(Map<String, dynamic> json) {
     return SalonModel(

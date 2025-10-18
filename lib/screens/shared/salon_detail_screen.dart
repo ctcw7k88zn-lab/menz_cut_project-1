@@ -26,6 +26,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   late AnimationController _favoriteAnimationController;
   late Animation<double> _favoriteScaleAnimation;
   bool _isFavorite = false;
+  ServiceModel? _selectedService;
 
   @override
   void initState() {
@@ -53,18 +54,67 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Print salon information
+    print('SalonDetailScreen: Building for salon: ${widget.salon.name}');
+    print('SalonDetailScreen: Salon ID: ${widget.salon.id}');
+    print('SalonDetailScreen: Salon image: ${widget.salon.primaryImageUrl}');
+    
     final servicesAsync = ref.watch(servicesBySalonProvider(widget.salon.id));
 
     return servicesAsync.when(
       loading: () => Scaffold(
-        appBar: AppBar(title: Text(widget.salon.name)),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(
+          title: Text(widget.salon.name),
+          backgroundColor: AppTheme.primaryMauve,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading salon details...'),
+            ],
+          ),
+        ),
       ),
-      error: (error, stack) => Scaffold(
-        appBar: AppBar(title: Text(widget.salon.name)),
-        body: Center(child: Text('Error: $error')),
-      ),
-      data: (services) => Scaffold(
+      error: (error, stack) {
+        print('SalonDetailScreen: Error loading services: $error');
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.salon.name),
+            backgroundColor: AppTheme.primaryMauve,
+            foregroundColor: Colors.white,
+          ),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 64, color: Colors.red),
+                const SizedBox(height: 12),
+                Text('Error loading services: $error'),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    ref.invalidate(servicesBySalonProvider(widget.salon.id));
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      data: (services) {
+        print('SalonDetailScreen: Loaded ${services.length} services');
+        return _buildSalonDetailContent(services);
+      },
+    );
+  }
+
+  Widget _buildSalonDetailContent(List<ServiceModel> services) {
+    return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -243,66 +293,72 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(AppTheme.getResponsiveSpacing(context, mobile: 16, tablet: 20, desktop: 24)),
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildAboutTab(),
-                    _buildServicesTab(services),
-                    _buildReviewsTab(),
-                    _buildGalleryTab(),
-                  ],
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.8, // Increased height from 0.6 to 0.8
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      SingleChildScrollView(child: _buildAboutTab()),
+                      SingleChildScrollView(child: _buildServicesTab(services)),
+                      SingleChildScrollView(child: _buildReviewsTab()),
+                      SingleChildScrollView(child: _buildGalleryTab()),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _callSalon,
-                  icon: const Icon(Icons.phone, size: 18),
-                  label: const Text('Call'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primaryMauve,
-                    side: const BorderSide(color: AppTheme.primaryMauve),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: _bookAppointment,
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: const Text('Book Appointment'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryMauve,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
           ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _callSalon,
+                icon: const Icon(Icons.phone, size: 18),
+                label: const Text('Call'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primaryMauve,
+                  side: const BorderSide(color: AppTheme.primaryMauve),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: _selectedService != null ? _bookAppointment : null,
+                icon: const Icon(Icons.calendar_today, size: 18),
+                label: Text(_selectedService != null ? 'Book Appointment' : 'Select Service First'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _selectedService != null ? AppTheme.primaryMauve : Colors.grey,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-    ),
     );
   }
 
@@ -311,65 +367,184 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Description
-        AppTheme.glassCard(
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'About',
-                style: AppTheme.heading2,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryMauve.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.info_outline,
+                      color: AppTheme.primaryMauve,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'About This Salon',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                widget.salon.description,
-                style: AppTheme.bodyMedium,
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                ),
+                child: Text(
+                  widget.salon.description.isNotEmpty 
+                    ? widget.salon.description 
+                    : 'Welcome to ${widget.salon.name}! We are a professional salon dedicated to providing exceptional beauty and grooming services. Our experienced team is committed to making you look and feel your best.',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.6,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Contact Information
-        AppTheme.glassCard(
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Contact Information',
-                style: AppTheme.heading2,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryMauve.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.contact_phone,
+                      color: AppTheme.primaryMauve,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Contact Information',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _buildContactItem(Icons.phone, 'Phone', widget.salon.phone),
+              const SizedBox(height: 20),
+              _buildModernContactItem(Icons.phone, 'Phone', widget.salon.phone.isNotEmpty ? widget.salon.phone : 'Not provided'),
               const SizedBox(height: 12),
-              _buildContactItem(Icons.email, 'Email', widget.salon.email),
-              const SizedBox(height: 12),
-              _buildContactItem(Icons.web, 'Website', widget.salon.website),
+              _buildModernContactItem(Icons.email, 'Email', widget.salon.email.isNotEmpty ? widget.salon.email : 'Not provided'),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Operating Hours
-        AppTheme.glassCard(
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Operating Hours',
-                style: AppTheme.heading2,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryMauve.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.access_time,
+                      color: AppTheme.primaryMauve,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Operating Hours',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              ...widget.salon.operatingHours.entries.map((entry) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+              const SizedBox(height: 12),
+              ...widget.salon.openingHours.entries.map((entry) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                  ),
                   child: Row(
                     children: [
-                      SizedBox(
+                      Container(
                         width: 80,
                         child: Text(
                           entry.key.capitalize(),
-                          style: AppTheme.bodyMedium.copyWith(
+                          style: const TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
                           ),
                         ),
                       ),
@@ -377,7 +552,11 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                       Expanded(
                         child: Text(
                           entry.value,
-                          style: AppTheme.bodyMedium,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -387,34 +566,68 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Amenities
-        AppTheme.glassCard(
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Amenities',
-                style: AppTheme.heading2,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryMauve.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.star_outline,
+                      color: AppTheme.primaryMauve,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Amenities',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: (widget.salon.amenities?.keys.toList() ?? []).map((amenity) {
+                children: (widget.salon.amenities?.keys.toList() ?? ['Free WiFi', 'Parking', 'Air Conditioning', 'Refreshments']).map((amenity) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryMauve.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: AppTheme.primaryMauve.withOpacity(0.3)),
                     ),
                     child: Text(
                       amenity,
-                      style: AppTheme.bodySmall.copyWith(
+                      style: const TextStyle(
                         color: AppTheme.primaryMauve,
                         fontWeight: FontWeight.w500,
+                        fontSize: 14,
                       ),
                     ),
                   );
@@ -441,17 +654,38 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
           const Center(
             child: Padding(
               padding: EdgeInsets.all(32.0),
-              child: Text(
-                'No services available',
-                style: AppTheme.bodyMedium,
+              child: Column(
+                children: [
+                  Icon(Icons.build, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No services available',
+                    style: AppTheme.bodyMedium,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'This salon hasn\'t added any services yet.',
+                    style: AppTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
           )
         else
           Column(
             children: services.map((service) {
+              final isSelected = _selectedService?.id == service.id;
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? AppTheme.primaryMauve : Colors.grey.withOpacity(0.3),
+                    width: isSelected ? 2 : 1,
+                  ),
+                  color: isSelected ? AppTheme.primaryMauve.withOpacity(0.1) : Colors.white,
+                ),
                 child: ServiceTile(
                   service: service,
                   onTap: () => _selectService(service),
@@ -459,6 +693,50 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
               );
             }).toList(),
           ),
+        
+        if (_selectedService != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryMauve.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.primaryMauve.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: AppTheme.primaryMauve),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Selected Service: ${_selectedService!.name}',
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryMauve,
+                        ),
+                      ),
+                      Text(
+                        'Duration: ${_selectedService!.durationMinutes} minutes • Price: \$${_selectedService!.price.toStringAsFixed(2)}',
+                        style: AppTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedService = null;
+                    });
+                  },
+                  child: const Text('Change'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -540,24 +818,51 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
     );
   }
 
-  Widget _buildContactItem(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.primaryMauve, size: 20),
-        const SizedBox(width: 12),
-        Text(
-          '$label: ',
-          style: AppTheme.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
+  Widget _buildModernContactItem(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryMauve.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: AppTheme.primaryMauve, size: 18),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: AppTheme.bodyMedium,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -716,16 +1021,35 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   }
 
   void _bookAppointment() {
+    if (_selectedService == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a service first'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+    
     context.go('/booking', extra: {
       'salon': widget.salon,
+      'service': _selectedService,
     });
   }
 
   void _selectService(ServiceModel service) {
-    context.go('/booking', extra: {
-      'salon': widget.salon,
-      'service': service,
+    setState(() {
+      _selectedService = service;
     });
+    
+    // Show a snackbar to confirm selection
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Selected: ${service.name}'),
+        backgroundColor: AppTheme.successColor,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _writeReview() {

@@ -174,7 +174,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                       left: 0,
                       right: 0,
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 24.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -186,6 +186,8 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                                 fontWeight: FontWeight.bold,
                                 fontFamily: 'Poppins',
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -217,6 +219,8 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                                       color: Colors.white70,
                                       fontSize: 14,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],

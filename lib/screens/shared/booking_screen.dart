@@ -124,7 +124,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           slivers: [
             // App Bar
             SliverAppBar(
-              expandedHeight: AppTheme.isMobile(context) ? 200 : 250,
+              expandedHeight: AppTheme.isMobile(context) ? 100 : 140, // Ultra reduced height
               floating: false,
               pinned: true,
               backgroundColor: AppTheme.primaryMauve,
@@ -135,11 +135,11 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                   ),
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0), // Reduced vertical padding
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10), // Reduced spacing
                           Row(
                             children: [
                               IconButton(
@@ -164,7 +164,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10), // Reduced spacing
                           Center(
                             child: _buildProgressIndicator(),
                           ),
@@ -421,8 +421,8 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
   }
 
   Widget _buildDateTimeSelectionStep() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0), // Maximum bottom padding
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -728,7 +728,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16), // Reduced spacing
 
           // Staff Selection
           AppTheme.glassCard(

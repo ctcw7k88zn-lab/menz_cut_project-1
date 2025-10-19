@@ -21,6 +21,7 @@ import 'screens/customer/customer_salon_list.dart';
 import 'screens/customer/ai_hair_suggestions.dart';
 import 'screens/owner/owner_dashboard.dart';
 import 'screens/owner/owner_profile.dart';
+import 'screens/owner/owner_reviews.dart';
 import 'screens/auth/forgot_password_screen.dart';
 import 'screens/shared/salon_detail_screen.dart';
 import 'screens/shared/booking_screen.dart';
@@ -171,6 +172,10 @@ class _SalonAppState extends ConsumerState<SalonApp> {
         GoRoute(
           path: '/owner-profile',
           builder: (context, state) => const OwnerProfileScreen(),
+        ),
+        GoRoute(
+          path: '/owner-reviews',
+          builder: (context, state) => const OwnerReviewsScreen(),
         ),
         GoRoute(
           path: '/salon-detail',

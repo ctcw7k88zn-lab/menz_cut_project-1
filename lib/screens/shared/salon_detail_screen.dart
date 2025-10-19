@@ -9,6 +9,7 @@ import '../../widgets/service_tile.dart';
 import '../../widgets/rating_stars.dart';
 import '../../widgets/review_display_widget.dart';
 import '../../providers/reviews_provider.dart';
+import '../../services/app_api.dart';
 
 class SalonDetailScreen extends ConsumerStatefulWidget {
   final SalonModel salon;
@@ -46,6 +47,8 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
       // Services are automatically loaded by the provider
       // Load reviews for this salon
       ref.read(reviewsProvider.notifier).loadReviewsForSalon(widget.salon.id);
+      // Fix salon rating to match actual reviews
+      _fixSalonRating();
     });
   }
 
@@ -1085,6 +1088,15 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _fixSalonRating() async {
+    try {
+      // Fix the salon rating to match the actual reviews
+      await AppApi.fixSalonRating(widget.salon.id);
+    } catch (e) {
+      print('Error fixing salon rating: $e');
+    }
   }
 }
 

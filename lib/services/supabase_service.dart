@@ -1675,6 +1675,47 @@ class SupabaseService {
     }
   }
 
+  // Manual method to fix salon rating (for immediate fix)
+  static Future<void> fixSalonRating(String salonId) async {
+    try {
+      print('🔧 SupabaseService: Manually fixing salon rating for: $salonId');
+      
+      // Get all reviews for this salon
+      final reviews = await getReviewsForSalon(salonId);
+      
+      if (reviews.isEmpty) {
+        print('🔧 SupabaseService: No reviews found, setting rating to 0');
+        await _supabase
+            .from('salons')
+            .update({
+              'rating': 0.0,
+              'review_count': 0,
+            })
+            .eq('id', salonId);
+        return;
+      }
+      
+      // Calculate average rating
+      final totalRating = reviews.fold<int>(0, (sum, review) => sum + review.rating);
+      final averageRating = totalRating / reviews.length;
+      
+      print('🔧 SupabaseService: Calculated rating: $averageRating from ${reviews.length} reviews');
+      
+      // Update salon
+      await _supabase
+          .from('salons')
+          .update({
+            'rating': averageRating,
+            'review_count': reviews.length,
+          })
+          .eq('id', salonId);
+      
+      print('✅ SupabaseService: Salon rating fixed - Rating: $averageRating, Reviews: ${reviews.length}');
+    } catch (e) {
+      print('❌ SupabaseService: Error fixing salon rating: $e');
+    }
+  }
+
   // Helper method to convert database response to ReviewModel
   static ReviewModel _reviewFromMap(Map<String, dynamic> data) {
     final profile = data['profiles'] as Map<String, dynamic>?;

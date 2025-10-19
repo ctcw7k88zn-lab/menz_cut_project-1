@@ -552,15 +552,6 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
               () => _viewAppointmentDetails(appointment),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildActionButton(
-              'Add Review',
-              Icons.star,
-              Colors.orange,
-              () => _addReview(appointment),
-            ),
-          ),
         ];
         break;
       case AppointmentStatus.cancelled:
@@ -903,14 +894,6 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
     );
   }
 
-  void _addReview(AppointmentModel appointment) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Add review for ${appointment.customerDetails?['name'] ?? 'Customer'}'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
 
   void _showComingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(

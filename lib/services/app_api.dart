@@ -990,6 +990,15 @@ class AppApi {
     }
   }
 
+  static Future<void> fixSalonRating(String salonId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // For local mode, no need to fix since mock data is consistent
+    } else {
+      return await SupabaseService.fixSalonRating(salonId);
+    }
+  }
+
   // Mock data for appointments
   static final List<AppointmentModel> _mockAppointments = [
     AppointmentModel(

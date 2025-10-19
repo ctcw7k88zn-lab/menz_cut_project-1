@@ -7,6 +7,8 @@ import '../../models/service_model.dart';
 import '../../providers/services_provider.dart';
 import '../../widgets/service_tile.dart';
 import '../../widgets/rating_stars.dart';
+import '../../widgets/review_display_widget.dart';
+import '../../providers/reviews_provider.dart';
 
 class SalonDetailScreen extends ConsumerStatefulWidget {
   final SalonModel salon;
@@ -42,6 +44,8 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Services are automatically loaded by the provider
+      // Load reviews for this salon
+      ref.read(reviewsProvider.notifier).loadReviewsForSalon(widget.salon.id);
     });
   }
 
@@ -748,51 +752,12 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   }
 
   Widget _buildReviewsTab() {
-    // Mock reviews data
-    final reviews = [
-      {
-        'name': 'Sarah Johnson',
-        'rating': 5.0,
-        'comment': 'Amazing service! The stylist was very professional and the haircut was exactly what I wanted.',
-        'date': '2 days ago',
-        'image': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100',
+    return ReviewDisplayWidget(
+      salonId: widget.salon.id,
+      onReviewSubmitted: () {
+        // Refresh reviews when a new review is submitted
+        ref.read(reviewsProvider.notifier).loadReviewsForSalon(widget.salon.id);
       },
-      {
-        'name': 'Michael Chen',
-        'rating': 4.5,
-        'comment': 'Great atmosphere and friendly staff. The coloring service was excellent.',
-        'date': '1 week ago',
-        'image': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      },
-      {
-        'name': 'Emily Davis',
-        'rating': 5.0,
-        'comment': 'Love this salon! Always leave feeling beautiful and confident.',
-        'date': '2 weeks ago',
-        'image': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Text(
-              'Reviews',
-              style: AppTheme.heading2,
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: _writeReview,
-              child: const Text('Write Review'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        
-        ...reviews.map((review) => _buildReviewCard(review)),
-      ],
     );
   }
 

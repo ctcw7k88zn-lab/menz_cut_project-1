@@ -15,6 +15,7 @@ import '../models/appointment_model.dart';
 import '../models/message_model.dart';
 import '../models/notification_model.dart';
 import '../models/ai_suggestion_model.dart';
+import '../models/review_model.dart';
 import 'local_data_service.dart';
 import 'realtime_service.dart';
 import 'supabase_service.dart';
@@ -828,5 +829,238 @@ class AppApi {
     }
     return tags;
   }
+
+  // ==================== REVIEW METHODS ====================
+  
+  static Future<List<ReviewModel>> getReviewsForSalon(String salonId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      return _mockReviews.where((review) => review.salonId == salonId).toList();
+    } else {
+      return await SupabaseService.getReviewsForSalon(salonId);
+    }
+  }
+
+  static Future<List<ReviewModel>> getReviewsForCustomer(String customerId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      return _mockReviews.where((review) => review.customerId == customerId).toList();
+    } else {
+      return await SupabaseService.getReviewsForCustomer(customerId);
+    }
+  }
+
+  static Future<String?> createReview({
+    required String customerId,
+    required String salonId,
+    String? appointmentId,
+    required int rating,
+    required String comment,
+    List<String> images = const [],
+  }) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      
+      // Check if customer has already reviewed this salon
+      final existingReview = _mockReviews.any((review) => 
+          review.customerId == customerId && review.salonId == salonId);
+      
+      if (existingReview) {
+        throw Exception('You have already reviewed this salon');
+      }
+      
+      final newReview = ReviewModel(
+        id: const Uuid().v4(),
+        customerId: customerId,
+        salonId: salonId,
+        appointmentId: appointmentId,
+        rating: rating,
+        comment: comment,
+        images: images,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        customerName: 'Customer ${customerId.substring(0, 8)}',
+        customerAvatar: null,
+      );
+      
+      _mockReviews.add(newReview);
+      return newReview.id;
+    } else {
+      return await SupabaseService.createReview(
+        customerId: customerId,
+        salonId: salonId,
+        appointmentId: appointmentId,
+        rating: rating,
+        comment: comment,
+        images: images,
+      );
+    }
+  }
+
+  static Future<void> updateReview({
+    required String reviewId,
+    required int rating,
+    required String comment,
+    List<String> images = const [],
+  }) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      
+      final index = _mockReviews.indexWhere((review) => review.id == reviewId);
+      if (index != -1) {
+        _mockReviews[index] = _mockReviews[index].copyWith(
+          rating: rating,
+          comment: comment,
+          images: images,
+          updatedAt: DateTime.now(),
+        );
+      }
+    } else {
+      await SupabaseService.updateReview(
+        reviewId: reviewId,
+        rating: rating,
+        comment: comment,
+        images: images,
+      );
+    }
+  }
+
+  static Future<void> deleteReview(String reviewId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      _mockReviews.removeWhere((review) => review.id == reviewId);
+    } else {
+      await SupabaseService.deleteReview(reviewId);
+    }
+  }
+
+  static Future<ReviewStats> getReviewStats(String salonId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      
+      final salonReviews = _mockReviews.where((review) => review.salonId == salonId).toList();
+      
+      if (salonReviews.isEmpty) {
+        return const ReviewStats(
+          averageRating: 0.0,
+          totalReviews: 0,
+          ratingDistribution: {},
+        );
+      }
+      
+      final ratings = salonReviews.map((review) => review.rating).toList();
+      final averageRating = ratings.reduce((a, b) => a + b) / ratings.length;
+      
+      final ratingDistribution = <int, int>{};
+      for (final rating in ratings) {
+        ratingDistribution[rating] = (ratingDistribution[rating] ?? 0) + 1;
+      }
+      
+      return ReviewStats(
+        averageRating: averageRating,
+        totalReviews: ratings.length,
+        ratingDistribution: ratingDistribution,
+      );
+    } else {
+      return await SupabaseService.getReviewStats(salonId);
+    }
+  }
+
+  static Future<bool> canCustomerReviewSalon(String customerId, String salonId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      
+      // Check if customer has already reviewed this salon
+      final existingReview = _mockReviews.any((review) => 
+          review.customerId == customerId && review.salonId == salonId);
+      
+      if (existingReview) {
+        return false;
+      }
+      
+      // Check if customer has completed appointments with this salon
+      final completedAppointments = _mockAppointments.where((appointment) => 
+          appointment.customerId == customerId && 
+          appointment.salonId == salonId && 
+          appointment.status == AppointmentStatus.completed).toList();
+      
+      return completedAppointments.isNotEmpty;
+    } else {
+      return await SupabaseService.canCustomerReviewSalon(customerId, salonId);
+    }
+  }
+
+  // Mock data for appointments
+  static final List<AppointmentModel> _mockAppointments = [
+    AppointmentModel(
+      id: 'appointment_1',
+      customerId: 'customer_1',
+      salonId: 'salon_1',
+      serviceId: 'service_1',
+      startAt: DateTime.now().subtract(const Duration(days: 2)),
+      endAt: DateTime.now().subtract(const Duration(days: 2)).add(const Duration(hours: 1)),
+      status: AppointmentStatus.completed,
+      paymentStatus: PaymentStatus.paid,
+      totalAmount: 50.0,
+      createdAt: DateTime.now().subtract(const Duration(days: 3)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 2)),
+    ),
+    AppointmentModel(
+      id: 'appointment_2',
+      customerId: 'customer_2',
+      salonId: 'salon_1',
+      serviceId: 'service_2',
+      startAt: DateTime.now().subtract(const Duration(days: 5)),
+      endAt: DateTime.now().subtract(const Duration(days: 5)).add(const Duration(hours: 1)),
+      status: AppointmentStatus.completed,
+      paymentStatus: PaymentStatus.paid,
+      totalAmount: 75.0,
+      createdAt: DateTime.now().subtract(const Duration(days: 6)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 5)),
+    ),
+  ];
+
+  // Mock data for reviews
+  static final List<ReviewModel> _mockReviews = [
+    ReviewModel(
+      id: 'review_1',
+      customerId: 'customer_1',
+      salonId: 'salon_1',
+      appointmentId: 'appointment_1',
+      rating: 5,
+      comment: 'Amazing service! The staff was very professional and the haircut exceeded my expectations.',
+      images: [],
+      createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 2)),
+      customerName: 'John Doe',
+      customerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+    ),
+    ReviewModel(
+      id: 'review_2',
+      customerId: 'customer_2',
+      salonId: 'salon_1',
+      appointmentId: 'appointment_2',
+      rating: 4,
+      comment: 'Good experience overall. The salon is clean and the stylist was friendly.',
+      images: [],
+      createdAt: DateTime.now().subtract(const Duration(days: 5)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 5)),
+      customerName: 'Jane Smith',
+      customerAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400',
+    ),
+    ReviewModel(
+      id: 'review_3',
+      customerId: 'customer_3',
+      salonId: 'salon_1',
+      appointmentId: 'appointment_3',
+      rating: 5,
+      comment: 'Perfect haircut! I will definitely come back again. Highly recommended!',
+      images: [],
+      createdAt: DateTime.now().subtract(const Duration(days: 7)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 7)),
+      customerName: 'Mike Johnson',
+      customerAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
+    ),
+  ];
 
 }

@@ -6,6 +6,7 @@ import '../../providers/appointments_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../widgets/lottie_loader.dart';
+import '../../widgets/review_input_widget.dart';
 
 class CustomerAppointmentsScreen extends ConsumerStatefulWidget {
   const CustomerAppointmentsScreen({super.key});
@@ -651,11 +652,28 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Rate Your Experience'),
-        content: const Text('Rating functionality would be implemented here'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ReviewInputWidget(
+            salonId: appointment.salonId,
+            appointmentId: appointment.id,
+            onReviewSubmitted: () {
+              Navigator.of(context).pop();
+              // Refresh the appointments to show updated review status
+              ref.read(appointmentsProvider.notifier).loadAppointments();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Thank you for your review!'),
+                  backgroundColor: AppTheme.primaryMauve,
+                ),
+              );
+            },
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const Text('Cancel'),
           ),
         ],
       ),

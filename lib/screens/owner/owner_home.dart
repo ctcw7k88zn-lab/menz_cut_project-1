@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/services_provider.dart';
 import '../../providers/notifications_provider.dart';
+import '../../providers/reviews_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../models/service_model.dart';
 import '../../services/app_api.dart';
@@ -77,6 +78,8 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
           ref.read(appointmentsProvider.notifier).loadAppointmentsForSalon(salon.id);
           // Load notifications for the salon owner
           ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
+          // Load reviews for the salon
+          ref.read(reviewsProvider.notifier).loadReviewsForSalon(salon.id);
         }
       }
       ref.read(chatProvider.notifier).loadMessagesForUser('owner_1');
@@ -129,6 +132,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                     _buildQuickActions(),
                   _buildYourServices(services),
                   _buildRecentAppointments(appointments),
+                  _buildRecentReviews(),
                   _buildInsightsChart(),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   ],
@@ -981,5 +985,216 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildRecentReviews() {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Reviews',
+                  style: AppTheme.headingMedium.copyWith(
+                    color: AppTheme.primaryMauve,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/owner-reviews'),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16.0),
+            Consumer(
+              builder: (context, ref, child) {
+                final reviewsState = ref.watch(reviewsProvider);
+                
+                return reviewsState.when(
+                  data: (reviews) {
+                    if (reviews.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(20.0),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.reviews_outlined,
+                              size: 48.0,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 12.0),
+                            Text(
+                              'No reviews yet',
+                              style: AppTheme.bodyLarge.copyWith(
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4.0),
+                            Text(
+                              'Reviews will appear here once customers start rating your salon',
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    // Show only the 3 most recent reviews
+                    final recentReviews = reviews.take(3).toList();
+                    
+                    return Column(
+                      children: recentReviews.map((review) => _buildReviewCard(review)).toList(),
+                    );
+                  },
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  error: (error, stackTrace) => Container(
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.red[400],
+                          size: 32.0,
+                        ),
+                        const SizedBox(height: 8.0),
+                        Text(
+                          'Failed to load reviews',
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: Colors.red[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(dynamic review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          // Customer Avatar
+          CircleAvatar(
+            radius: 20.0,
+            backgroundImage: review.customerAvatar != null
+                ? NetworkImage(review.customerAvatar!)
+                : null,
+            child: review.customerAvatar == null
+                ? Text(
+                    (review.customerName ?? 'U')[0].toUpperCase(),
+                    style: AppTheme.bodyMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12.0),
+          
+          // Review Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      review.customerName ?? 'Anonymous',
+                      style: AppTheme.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    ...List.generate(5, (index) {
+                      return Icon(
+                        index < review.rating ? Icons.star : Icons.star_border,
+                        color: AppTheme.accentGold,
+                        size: 14.0,
+                      );
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  review.comment,
+                  style: AppTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  _formatDate(review.createdAt),
+                  style: AppTheme.bodySmall.copyWith(
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '$weeks week${weeks == 1 ? '' : 's'} ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }

@@ -9,6 +9,7 @@ import '../models/appointment_model.dart';
 import '../models/message_model.dart';
 import '../models/notification_model.dart';
 import '../models/ai_suggestion_model.dart';
+import '../models/review_model.dart';
 
 /// Supabase service that handles all backend operations
 class SupabaseService {
@@ -1426,7 +1427,272 @@ class SupabaseService {
     }
   }
 
+  // ==================== REVIEW METHODS ====================
   
+  // Get reviews for a specific salon
+  static Future<List<ReviewModel>> getReviewsForSalon(String salonId) async {
+    try {
+      print('🔍 SupabaseService: Getting reviews for salon: $salonId');
+      
+      final response = await _supabase
+          .from('reviews')
+          .select('''
+            *,
+            profiles!reviews_customer_id_fkey(
+              full_name,
+              avatar_url
+            )
+          ''')
+          .eq('salon_id', salonId)
+          .order('created_at', ascending: false);
+      
+      print('🔍 SupabaseService: Found ${response.length} reviews for salon');
+      
+      return response.map<ReviewModel>((data) => _reviewFromMap(data)).toList();
+    } catch (e) {
+      print('❌ SupabaseService: Error getting reviews for salon: $e');
+      throw Exception('Failed to get reviews: ${e.toString()}');
+    }
+  }
+
+  // Get reviews for a specific customer
+  static Future<List<ReviewModel>> getReviewsForCustomer(String customerId) async {
+    try {
+      print('🔍 SupabaseService: Getting reviews for customer: $customerId');
+      
+      final response = await _supabase
+          .from('reviews')
+          .select('''
+            *,
+            profiles!reviews_customer_id_fkey(
+              full_name,
+              avatar_url
+            )
+          ''')
+          .eq('customer_id', customerId)
+          .order('created_at', ascending: false);
+      
+      print('🔍 SupabaseService: Found ${response.length} reviews for customer');
+      
+      return response.map<ReviewModel>((data) => _reviewFromMap(data)).toList();
+    } catch (e) {
+      print('❌ SupabaseService: Error getting reviews for customer: $e');
+      throw Exception('Failed to get reviews: ${e.toString()}');
+    }
+  }
+
+  // Create a new review
+  static Future<String> createReview({
+    required String customerId,
+    required String salonId,
+    String? appointmentId,
+    required int rating,
+    required String comment,
+    List<String> images = const [],
+  }) async {
+    try {
+      print('📝 SupabaseService: Creating review for salon: $salonId');
+      
+      // Check if customer has already reviewed this salon
+      final existingReview = await _supabase
+          .from('reviews')
+          .select('id')
+          .eq('customer_id', customerId)
+          .eq('salon_id', salonId)
+          .maybeSingle();
+      
+      if (existingReview != null) {
+        throw Exception('You have already reviewed this salon');
+      }
+      
+      final response = await _supabase
+          .from('reviews')
+          .insert({
+            'customer_id': customerId,
+            'salon_id': salonId,
+            'appointment_id': appointmentId,
+            'rating': rating,
+            'comment': comment,
+            'images': images,
+          })
+          .select('id')
+          .single();
+      
+      print('✅ SupabaseService: Review created successfully: ${response['id']}');
+      
+      // Update salon rating and review count
+      await _updateSalonRating(salonId);
+      
+      return response['id'];
+    } catch (e) {
+      print('❌ SupabaseService: Error creating review: $e');
+      throw Exception('Failed to create review: ${e.toString()}');
+    }
+  }
+
+  // Update an existing review
+  static Future<void> updateReview({
+    required String reviewId,
+    required int rating,
+    required String comment,
+    List<String> images = const [],
+  }) async {
+    try {
+      print('✏️ SupabaseService: Updating review: $reviewId');
+      
+      final response = await _supabase
+          .from('reviews')
+          .update({
+            'rating': rating,
+            'comment': comment,
+            'images': images,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', reviewId)
+          .select('salon_id')
+          .single();
+      
+      print('✅ SupabaseService: Review updated successfully');
+      
+      // Update salon rating and review count
+      await _updateSalonRating(response['salon_id']);
+    } catch (e) {
+      print('❌ SupabaseService: Error updating review: $e');
+      throw Exception('Failed to update review: ${e.toString()}');
+    }
+  }
+
+  // Delete a review
+  static Future<void> deleteReview(String reviewId) async {
+    try {
+      print('🗑️ SupabaseService: Deleting review: $reviewId');
+      
+      final response = await _supabase
+          .from('reviews')
+          .delete()
+          .eq('id', reviewId)
+          .select('salon_id')
+          .single();
+      
+      print('✅ SupabaseService: Review deleted successfully');
+      
+      // Update salon rating and review count
+      await _updateSalonRating(response['salon_id']);
+    } catch (e) {
+      print('❌ SupabaseService: Error deleting review: $e');
+      throw Exception('Failed to delete review: ${e.toString()}');
+    }
+  }
+
+  // Get review statistics for a salon
+  static Future<ReviewStats> getReviewStats(String salonId) async {
+    try {
+      print('📊 SupabaseService: Getting review stats for salon: $salonId');
+      
+      final response = await _supabase
+          .from('reviews')
+          .select('rating')
+          .eq('salon_id', salonId);
+      
+      if (response.isEmpty) {
+        return const ReviewStats(
+          averageRating: 0.0,
+          totalReviews: 0,
+          ratingDistribution: {},
+        );
+      }
+      
+      final ratings = response.map<int>((r) => r['rating'] as int).toList();
+      final averageRating = ratings.reduce((a, b) => a + b) / ratings.length;
+      
+      final ratingDistribution = <int, int>{};
+      for (final rating in ratings) {
+        ratingDistribution[rating] = (ratingDistribution[rating] ?? 0) + 1;
+      }
+      
+      print('📊 SupabaseService: Review stats - Average: $averageRating, Total: ${ratings.length}');
+      
+      return ReviewStats(
+        averageRating: averageRating,
+        totalReviews: ratings.length,
+        ratingDistribution: ratingDistribution,
+      );
+    } catch (e) {
+      print('❌ SupabaseService: Error getting review stats: $e');
+      throw Exception('Failed to get review stats: ${e.toString()}');
+    }
+  }
+
+  // Check if customer can review a salon
+  static Future<bool> canCustomerReviewSalon(String customerId, String salonId) async {
+    try {
+      print('🔍 SupabaseService: Checking if customer can review salon');
+      
+      // Check if customer has already reviewed this salon
+      final existingReview = await _supabase
+          .from('reviews')
+          .select('id')
+          .eq('customer_id', customerId)
+          .eq('salon_id', salonId)
+          .maybeSingle();
+      
+      if (existingReview != null) {
+        return false; // Already reviewed
+      }
+      
+      // Check if customer has any completed appointments with this salon
+      final completedAppointments = await _supabase
+          .from('appointments')
+          .select('id')
+          .eq('customer_id', customerId)
+          .eq('salon_id', salonId)
+          .eq('status', 'completed')
+          .limit(1);
+      
+      return completedAppointments.isNotEmpty;
+    } catch (e) {
+      print('❌ SupabaseService: Error checking review eligibility: $e');
+      return false;
+    }
+  }
+
+  // Helper method to update salon rating and review count
+  static Future<void> _updateSalonRating(String salonId) async {
+    try {
+      final stats = await getReviewStats(salonId);
+      
+      await _supabase
+          .from('salons')
+          .update({
+            'rating': stats.averageRating,
+            'review_count': stats.totalReviews,
+          })
+          .eq('id', salonId);
+      
+      print('📊 SupabaseService: Updated salon rating: ${stats.averageRating}, reviews: ${stats.totalReviews}');
+    } catch (e) {
+      print('❌ SupabaseService: Error updating salon rating: $e');
+    }
+  }
+
+  // Helper method to convert database response to ReviewModel
+  static ReviewModel _reviewFromMap(Map<String, dynamic> data) {
+    final profile = data['profiles'] as Map<String, dynamic>?;
+    
+    return ReviewModel(
+      id: data['id'],
+      customerId: data['customer_id'],
+      salonId: data['salon_id'],
+      appointmentId: data['appointment_id'],
+      rating: data['rating'],
+      comment: data['comment'],
+      images: List<String>.from(data['images'] ?? []),
+      createdAt: DateTime.parse(data['created_at']),
+      updatedAt: DateTime.parse(data['updated_at']),
+      customerName: profile?['full_name'],
+      customerAvatar: profile?['avatar_url'],
+    );
+  }
 }
 
 // Extension to capitalize strings

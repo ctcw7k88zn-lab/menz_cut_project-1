@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../providers/notifications_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/notification_model.dart';
 import '../../widgets/lottie_loader.dart';
 
@@ -24,7 +25,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     _tabController = TabController(length: 3, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Notifications are automatically loaded by the provider
+      // Load notifications for the current user
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
+      }
     });
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../providers/salons_provider.dart';
+import '../../providers/notifications_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/salon_card.dart';
 import '../../widgets/search_bar.dart' as custom;
 import '../../widgets/filter_sheet.dart';
@@ -63,6 +65,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(salonsProvider.notifier).loadSalons();
+      // Load notifications for the current user
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
+      }
     });
   }
 
@@ -120,25 +127,46 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                                 ),
                               ),
                               const Spacer(),
-                              Stack(
-                                children: [
-                                  IconButton(
-                                    onPressed: () => context.push('/notifications'),
-                                    icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                                  ),
-                                  Positioned(
-                                    right: 8,
-                                    top: 8,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        color: AppTheme.accentGold,
-                                        shape: BoxShape.circle,
+                              Consumer(
+                                builder: (context, ref, child) {
+                                  final notificationsState = ref.watch(notificationsProvider);
+                                  final unreadCount = notificationsState.when(
+                                    data: (notifications) => notifications.where((n) => !n.isRead).length,
+                                    loading: () => 0,
+                                    error: (_, __) => 0,
+                                  );
+                                  
+                                  return Stack(
+                                    children: [
+                                      IconButton(
+                                        onPressed: () => context.push('/notifications'),
+                                        icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                                       ),
-                                    ),
-                                  ),
-                                ],
+                                      if (unreadCount > 0)
+                                        Positioned(
+                                          right: 8,
+                                          top: 8,
+                                          child: Container(
+                                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.accentGold,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
                               ),
                             ],
                           ),

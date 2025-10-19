@@ -15,6 +15,58 @@ class SupabaseService {
   static final SupabaseClient _supabase = Supabase.instance.client;
 
   // Authentication methods
+  static Future<UserModel> login(String email, String password) async {
+    try {
+      print('🔐 SupabaseService: Starting login for: $email');
+      
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      
+      print('🔐 SupabaseService: Login response: ${response.user?.id}');
+      
+      if (response.user == null) {
+        throw Exception('Login failed - no user returned from Supabase');
+      }
+      
+      // Get user profile
+      final userProfile = await _getUserProfile(response.user!.id);
+      
+      // Create login notification
+      try {
+        await createNotification(
+          userId: response.user!.id,
+          type: NotificationType.general,
+          title: 'Welcome Back!',
+          message: 'You have successfully logged into your account.',
+          data: {'login_time': DateTime.now().toIso8601String()},
+        );
+        print('🔔 SupabaseService: Login notification created');
+      } catch (notificationError) {
+        print('⚠️ SupabaseService: Failed to create login notification: $notificationError');
+        // Don't fail login if notification fails
+      }
+      
+      return userProfile;
+    } catch (e) {
+      print('❌ SupabaseService: Login error: $e');
+      throw Exception('Login failed: ${e.toString()}');
+    }
+  }
+
+  static Future<UserModel> getCurrentUser() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('No authenticated user');
+      }
+      return await _getUserProfile(user.id);
+    } catch (e) {
+      throw Exception('Failed to get current user: ${e.toString()}');
+    }
+  }
+
   static Future<UserModel> signup({
     required String email,
     required String password,
@@ -61,6 +113,23 @@ class SupabaseService {
         // Continue anyway - the user is created in auth.users
       }
       
+      // Create welcome notification
+      try {
+        await createNotification(
+          userId: response.user!.id,
+          type: NotificationType.general,
+          title: 'Welcome to Menz Cut!',
+          message: role == UserRole.customer 
+              ? 'Welcome! Start exploring salons and book your first appointment.'
+              : 'Welcome! Set up your salon profile and start accepting appointments.',
+          data: {'role': role.name, 'signup_time': DateTime.now().toIso8601String()},
+        );
+        print('🔔 SupabaseService: Welcome notification created');
+      } catch (notificationError) {
+        print('⚠️ SupabaseService: Failed to create welcome notification: $notificationError');
+        // Don't fail signup if notification fails
+      }
+      
       // Return a basic user model
       return UserModel(
         id: response.user!.id,
@@ -80,34 +149,6 @@ class SupabaseService {
     }
   }
 
-  static Future<UserModel> getCurrentUser() async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        throw Exception('No authenticated user');
-      }
-      return await _getUserProfile(user.id);
-    } catch (e) {
-      throw Exception('Failed to get current user: ${e.toString()}');
-    }
-  }
-
-  static Future<UserModel> login(String email, String password) async {
-    try {
-      final response = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      
-      if (response.user == null) {
-        throw Exception('Login failed');
-      }
-      
-      return await _getUserProfile(response.user!.id);
-    } catch (e) {
-      throw Exception('Login failed: ${e.toString()}');
-    }
-  }
 
   static Future<void> logout() async {
     await _supabase.auth.signOut();

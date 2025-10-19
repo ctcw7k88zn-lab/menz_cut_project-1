@@ -7,6 +7,7 @@ import '../../providers/appointments_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/services_provider.dart';
+import '../../providers/notifications_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../models/service_model.dart';
 import '../../services/app_api.dart';
@@ -74,6 +75,8 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
         if (salon != null) {
           // Load appointments for the salon owner's salon
           ref.read(appointmentsProvider.notifier).loadAppointmentsForSalon(salon.id);
+          // Load notifications for the salon owner
+          ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
         }
       }
       ref.read(chatProvider.notifier).loadMessagesForUser('owner_1');
@@ -175,10 +178,47 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
               ),
             ],
           ),
-          child: IconButton(
-            onPressed: () => context.push('/notifications'),
-            icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryMauve),
-        ),
+          child: Consumer(
+            builder: (context, ref, child) {
+              final notificationsState = ref.watch(notificationsProvider);
+              final unreadCount = notificationsState.when(
+                data: (notifications) => notifications.where((n) => !n.isRead).length,
+                loading: () => 0,
+                error: (_, __) => 0,
+              );
+              
+              return Stack(
+                children: [
+                  IconButton(
+                    onPressed: () => context.push('/notifications'),
+                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryMauve),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentGold,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
       ),
       ],
     );

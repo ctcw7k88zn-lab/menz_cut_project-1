@@ -85,17 +85,6 @@ class _CustomerSalonListScreenState extends ConsumerState<CustomerSalonListScree
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                                ),
-                              ),
                               const SizedBox(width: 12),
                               const Expanded(
                                 child: Text(
@@ -294,14 +283,14 @@ class _CustomerSalonListScreenState extends ConsumerState<CustomerSalonListScree
                               child: SalonCard(
                                 salon: salon,
                                 onTap: () {
-                                  context.go('/salon-detail', extra: {'salon': salon});
+                                  context.push('/salon-detail', extra: {'salon': salon});
                                 },
                               ),
                             )
                           : SalonListCard(
                               salon: salon,
                               onTap: () {
-                                context.go('/salon-detail', extra: {'salon': salon});
+                                context.push('/salon-detail', extra: {'salon': salon});
                               },
                             ),
                     );
@@ -321,7 +310,7 @@ class _CustomerSalonListScreenState extends ConsumerState<CustomerSalonListScree
             scale: _fabScaleAnimation.value,
             child: FloatingActionButton.extended(
               onPressed: () {
-                context.go('/customer-map');
+                context.push('/customer-map');
               },
               backgroundColor: AppTheme.primaryMauve,
               icon: const Icon(Icons.map, color: Colors.white),
@@ -361,19 +350,19 @@ class _CustomerSalonListScreenState extends ConsumerState<CustomerSalonListScree
             onTap: (index) {
               switch (index) {
                 case 0:
-                  context.go('/customer-home');
+                  context.push('/customer-home');
                   break;
                 case 1:
-                  context.go('/customer-map');
+                  context.push('/customer-map');
                   break;
                 case 2:
-                  context.go('/customer-appointments');
+                  context.push('/customer-appointments');
                   break;
                 case 3:
-                  context.go('/ai-hair-suggestions');
+                  context.push('/ai-hair-suggestions');
                   break;
                 case 4:
-                  context.go('/customer-profile');
+                  context.push('/customer-profile');
                   break;
               }
             },

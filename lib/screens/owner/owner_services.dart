@@ -140,7 +140,7 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
           onPressed: () {
             print('Back button pressed - navigating to home tab');
             // Navigate to owner-home which will show the dashboard with Home tab (index 0)
-            context.go('/owner-home');
+            context.push('/owner-home');
           },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
         ),
@@ -866,7 +866,7 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
 
   void _rescheduleAppointment(AppointmentModel appointment) {
     // Navigate to booking screen for rescheduling
-    context.go('/booking', extra: {
+    context.push('/booking', extra: {
       'salon': appointment.salonDetails,
       'service': appointment.serviceDetails,
       'isReschedule': true,

@@ -466,7 +466,7 @@ class _CustomerMapScreenState extends ConsumerState<CustomerMapScreen>
                 ],
               ),
               child: IconButton(
-                onPressed: () => context.go('/notifications'),
+                onPressed: () => context.push('/notifications'),
                 icon: const Icon(Icons.notifications_outlined),
                 color: AppTheme.textPrimary,
               ),
@@ -867,7 +867,7 @@ class _CustomerMapScreenState extends ConsumerState<CustomerMapScreen>
                             ),
                             child: ElevatedButton(
                               onPressed: () {
-                                context.go('/booking', extra: {
+                                context.push('/booking', extra: {
                                   'salon': _selectedSalon,
                                   'service': null,
                                 });
@@ -902,7 +902,7 @@ class _CustomerMapScreenState extends ConsumerState<CustomerMapScreen>
                             ),
                             child: ElevatedButton(
                               onPressed: () {
-                                context.go('/salon-detail', extra: {'salon': _selectedSalon});
+                                context.push('/salon-detail', extra: {'salon': _selectedSalon});
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,

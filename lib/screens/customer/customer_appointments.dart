@@ -101,10 +101,6 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              ),
                               const Expanded(
                                 child: Text(
                                   'My Appointments',
@@ -195,19 +191,19 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
             onTap: (index) {
               switch (index) {
                 case 0:
-                  context.go('/customer-home');
+                  context.push('/customer-home');
                   break;
                 case 1:
-                  context.go('/customer-map');
+                  context.push('/customer-map');
                   break;
                 case 2:
                   // Already on appointments
                   break;
                 case 3:
-                  context.go('/ai-hair-suggestions');
+                  context.push('/ai-hair-suggestions');
                   break;
                 case 4:
-                  context.go('/customer-profile');
+                  context.push('/customer-profile');
                   break;
               }
             },
@@ -334,7 +330,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
           const SizedBox(height: 24),
           if (type == 'upcoming')
             ElevatedButton(
-              onPressed: () => context.go('/customer-home'),
+              onPressed: () => context.push('/customer-home'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryMauve,
                 foregroundColor: Colors.white,
@@ -606,7 +602,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
 
   void _rescheduleAppointment(AppointmentModel appointment) {
     // Navigate to booking screen with pre-filled data
-    context.go('/booking', extra: {
+    context.push('/booking', extra: {
       'salon': appointment.salonDetails,
       'service': appointment.serviceDetails,
       'isReschedule': true,
@@ -668,7 +664,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
 
   void _bookAgain(AppointmentModel appointment) {
     // Navigate to booking screen with pre-filled data
-    context.go('/booking', extra: {
+    context.push('/booking', extra: {
       'salon': appointment.salonDetails,
       'service': appointment.serviceDetails,
     });
@@ -676,7 +672,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
 
   void _messageSalon(AppointmentModel appointment) {
     // Navigate to chat screen
-    context.go('/customer-chat', extra: {
+    context.push('/customer-chat', extra: {
       'salonId': appointment.salonId,
       'salonName': appointment.salonDetails?['name'] ?? 'Salon',
     });

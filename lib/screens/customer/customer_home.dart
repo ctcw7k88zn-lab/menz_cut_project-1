@@ -123,7 +123,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                               Stack(
                                 children: [
                                   IconButton(
-                                    onPressed: () => context.go('/notifications'),
+                                    onPressed: () => context.push('/notifications'),
                                     icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                                   ),
                                   Positioned(
@@ -266,7 +266,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                         ),
                         TextButton(
                           onPressed: () {
-                            context.go('/customer-salon-list');
+                            context.push('/customer-salon-list');
                           },
                           child: const Text('See All'),
                         ),
@@ -300,7 +300,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                               child: SalonCard(
                                 salon: salons[index],
                                 onTap: () {
-                                  context.go('/salon-detail', extra: {'salon': salons[index]});
+                                  context.push('/salon-detail', extra: {'salon': salons[index]});
                                 },
                               ),
                             );
@@ -447,7 +447,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                           margin: const EdgeInsets.only(bottom: 16),
                           child: AppTheme.glassCard(
                             onTap: () {
-                              context.go('/salon-detail', extra: {'salon': salon});
+                              context.push('/salon-detail', extra: {'salon': salon});
                             },
                             child: Row(
                               children: [
@@ -531,7 +531,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
             child: FloatingActionButton.extended(
               onPressed: () {
                 // Quick book functionality
-                context.go('/booking');
+                context.push('/booking');
               },
               backgroundColor: AppTheme.primaryMauve,
               icon: const Icon(Icons.add, color: Colors.white),
@@ -574,16 +574,16 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                   // Already on home
                   break;
                 case 1:
-                  context.go('/customer-map');
+                  context.push('/customer-map');
                   break;
                 case 2:
-                  context.go('/customer-appointments');
+                  context.push('/customer-appointments');
                   break;
                 case 3:
-                  context.go('/ai-hair-suggestions');
+                  context.push('/ai-hair-suggestions');
                   break;
                 case 4:
-                  context.go('/customer-profile');
+                  context.push('/customer-profile');
                   break;
               }
             },

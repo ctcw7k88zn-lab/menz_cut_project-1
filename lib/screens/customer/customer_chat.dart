@@ -378,19 +378,19 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
         onTap: (index) {
           switch (index) {
             case 0:
-              context.go('/customer-home');
+              context.push('/customer-home');
               break;
             case 1:
-              context.go('/customer-map');
+              context.push('/customer-map');
               break;
             case 2:
-              context.go('/customer-appointments');
+              context.push('/customer-appointments');
               break;
             case 3:
               // Already on chat
               break;
             case 4:
-              context.go('/customer-profile');
+              context.push('/customer-profile');
               break;
           }
         },

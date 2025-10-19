@@ -100,17 +100,6 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
                           const SizedBox(height: 5),
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () {
-                                  // Navigate back to previous screen or home
-                                  if (context.canPop()) {
-                                    context.pop();
-                                  } else {
-                                    context.go('/customer-home');
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              ),
                               const Spacer(),
                               const Text(
                                 'My Profile',
@@ -198,16 +187,16 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen>
             onTap: (index) {
               switch (index) {
                 case 0:
-                  context.go('/customer-home');
+                  context.push('/customer-home');
                   break;
                 case 1:
-                  context.go('/customer-map');
+                  context.push('/customer-map');
                   break;
                 case 2:
-                  context.go('/customer-appointments');
+                  context.push('/customer-appointments');
                   break;
                 case 3:
-                  context.go('/ai-hair-suggestions');
+                  context.push('/ai-hair-suggestions');
                   break;
                 case 4:
                   // Already on profile

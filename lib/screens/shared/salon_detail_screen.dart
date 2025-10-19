@@ -1057,7 +1057,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
       return;
     }
     
-    context.go('/booking', extra: {
+    context.push('/booking', extra: {
       'salon': widget.salon,
       'service': _selectedService,
     });

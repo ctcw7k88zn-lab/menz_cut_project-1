@@ -215,7 +215,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
             } else {
               print('No callback available, navigating to owner-home');
               // Fallback: Navigate to owner-home which will show the dashboard with Home tab (index 0)
-              context.go('/owner-home');
+              context.push('/owner-home');
             }
           },
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),

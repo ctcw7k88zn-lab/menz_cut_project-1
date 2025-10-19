@@ -75,16 +75,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (context.canPop()) {
-                                    context.pop();
-                                  } else {
-                                    context.go('/customer-home');
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              ),
                               const Expanded(
                                 child: Text(
                                   'Notifications',
@@ -463,7 +453,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Handle navigation based on type
     switch (notification.type) {
       case NotificationType.newAppointment:
-        context.go('/customer-appointments');
+        context.push('/customer-appointments');
         break;
       case NotificationType.general:
         // Navigate to promotions or salon detail
@@ -472,10 +462,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         // Navigate to relevant screen
         break;
       case NotificationType.newMessage:
-        context.go('/customer-chat');
+        context.push('/customer-chat');
         break;
       case NotificationType.appointmentConfirmed:
-        context.go('/customer-appointments');
+        context.push('/customer-appointments');
         break;
       default:
         // Handle unknown notification types
@@ -485,7 +475,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   void _handleAppointmentAction(NotificationModel notification) {
     // Navigate to appointment details or booking
-    context.go('/customer-appointments');
+    context.push('/customer-appointments');
   }
 
   void _markAllAsRead() {

@@ -92,10 +92,6 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              ),
                               const Expanded(
                                 child: Text(
                                   'AI Hair Suggestions',
@@ -217,19 +213,19 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
             onTap: (index) {
               switch (index) {
                 case 0:
-                  context.go('/customer-home');
+                  context.push('/customer-home');
                   break;
                 case 1:
-                  context.go('/customer-map');
+                  context.push('/customer-map');
                   break;
                 case 2:
-                  context.go('/customer-appointments');
+                  context.push('/customer-appointments');
                   break;
                 case 3:
                   // Already on AI suggestions
                   break;
                 case 4:
-                  context.go('/customer-profile');
+                  context.push('/customer-profile');
                   break;
               }
             },
@@ -747,7 +743,7 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
 
   void _bookSuggestion(AISuggestionModel suggestion) {
     // Navigate to booking screen with pre-filled data
-    context.go('/booking', extra: {
+    context.push('/booking', extra: {
       'suggestion': suggestion,
       'isAISuggestion': true,
     });

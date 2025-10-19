@@ -176,7 +176,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
             ],
           ),
           child: IconButton(
-            onPressed: () => context.go('/notifications'),
+            onPressed: () => context.push('/notifications'),
             icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryMauve),
         ),
       ),
@@ -423,7 +423,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                   ),
                 ),
               TextButton(
-                  onPressed: () => context.go('/owner-dashboard', extra: {'initialIndex': 2}),
+                  onPressed: () => context.push('/owner-dashboard', extra: {'initialIndex': 2}),
                   child: const Text('View All', style: TextStyle(color: AppTheme.primaryMauve)),
               ),
             ],

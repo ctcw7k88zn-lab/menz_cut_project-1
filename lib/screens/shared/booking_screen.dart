@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../models/salon_model.dart';
 import '../../models/service_model.dart';
+import '../../models/appointment_model.dart';
 import '../../providers/appointments_provider.dart';
 import '../../providers/auth_provider.dart';
 
@@ -101,6 +102,11 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
         );
       });
     }
+    
+    // Load appointments to check availability
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(appointmentsProvider.notifier).loadAppointments();
+    });
   }
 
   @override
@@ -124,7 +130,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
           slivers: [
             // App Bar
             SliverAppBar(
-              expandedHeight: AppTheme.isMobile(context) ? 100 : 140, // Ultra reduced height
+              expandedHeight: AppTheme.isMobile(context) ? 140 : 180, // Adequate height to prevent overlap
               floating: false,
               pinned: true,
               backgroundColor: AppTheme.primaryMauve,
@@ -135,36 +141,24 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                   ),
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0), // Reduced vertical padding
+                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0), // Adequate padding
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 10), // Reduced spacing
-                          Row(
-                            children: [
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          const SizedBox(height: 16), // Adequate spacing
+                          Center(
+                            child: Text(
+                              'Book Appointment',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Poppins',
                               ),
-                              const Expanded(
-                                child: Text(
-                                  'Book Appointment',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'Poppins',
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: const Icon(Icons.close, color: Colors.white),
-                              ),
-                            ],
+                              textAlign: TextAlign.center,
+                            ),
                           ),
-                          const SizedBox(height: 10), // Reduced spacing
+                          const SizedBox(height: 16), // Adequate spacing
                           Center(
                             child: _buildProgressIndicator(),
                           ),
@@ -290,6 +284,8 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                     onTap: () {
                       setState(() {
                         _selectedService = service;
+                        // Refresh availability when service changes
+                        ref.read(appointmentsProvider.notifier).loadAppointments();
                       });
                     },
                     child: AppTheme.glassCard(
@@ -1096,7 +1092,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
 
         // Navigate to appointments
         await Future.delayed(const Duration(seconds: 1));
-        context.go('/customer-appointments');
+        context.push('/customer-appointments');
       } else {
         print('❌ Appointment creation returned null');
         throw Exception('Failed to create appointment');
@@ -1117,46 +1113,91 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
     return days[weekday - 1];
   }
 
-  // Mock unavailable dates (for demonstration)
+  // Check if date is unavailable based on existing bookings and business rules
   bool _isDateUnavailable(DateTime date) {
-    // Example: Make weekends unavailable
+    // Make weekends unavailable (business rule)
     if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
       return true;
     }
     
-    // Example: Make certain dates unavailable (e.g., holidays)
+    // Make past dates unavailable
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    if (date.isBefore(todayDate)) {
+      return true;
+    }
+    
+    // Make certain dates unavailable (e.g., holidays)
     final unavailableDates = [
       DateTime(2024, 12, 25), // Christmas
       DateTime(2024, 1, 1),   // New Year
       DateTime(2024, 7, 4),   // Independence Day
     ];
     
-    return unavailableDates.any((unavailableDate) => 
+    final isHoliday = unavailableDates.any((unavailableDate) => 
       date.year == unavailableDate.year &&
       date.month == unavailableDate.month &&
       date.day == unavailableDate.day
     );
+    
+    if (isHoliday) return true;
+    
+    // Get appointments for this salon and date
+    final appointments = ref.read(appointmentsProvider).value ?? [];
+    final salonAppointments = appointments.where((appointment) {
+      return appointment.salonId == widget.salon.id &&
+             appointment.startAt.year == date.year &&
+             appointment.startAt.month == date.month &&
+             appointment.startAt.day == date.day;
+    }).toList();
+    
+    // Date is fully booked if all available time slots are taken
+    // This is a simplified check - in reality, you'd check against available time slots
+    final activeAppointments = salonAppointments.where((appointment) {
+      return appointment.status != AppointmentStatus.cancelled &&
+             appointment.status != AppointmentStatus.completed &&
+             appointment.status != AppointmentStatus.noShow;
+    }).length;
+    
+    // If there are more than 8 active appointments on this date, consider it fully booked
+    // (assuming 8 time slots per day)
+    return activeAppointments >= 8;
   }
 
-  // Mock unavailable time slots (for demonstration)
+  // Check if time slot is unavailable based on existing bookings
   bool _isTimeSlotUnavailable(DateTime date, TimeOfDay time) {
-    // Example: Make certain time slots unavailable
-    final unavailableSlots = [
-      {'date': DateTime(2024, 1, 15), 'time': const TimeOfDay(hour: 9, minute: 0)},
-      {'date': DateTime(2024, 1, 15), 'time': const TimeOfDay(hour: 10, minute: 0)},
-      {'date': DateTime(2024, 1, 16), 'time': const TimeOfDay(hour: 14, minute: 0)},
-      {'date': DateTime(2024, 1, 16), 'time': const TimeOfDay(hour: 15, minute: 0)},
-    ];
+    // Get appointments for this salon
+    final appointments = ref.read(appointmentsProvider).value ?? [];
     
-    return unavailableSlots.any((slot) {
-      final slotDate = slot['date'] as DateTime;
-      final slotTime = slot['time'] as TimeOfDay;
+    // Filter appointments for this salon and date
+    final salonAppointments = appointments.where((appointment) {
+      return appointment.salonId == widget.salon.id &&
+             appointment.startAt.year == date.year &&
+             appointment.startAt.month == date.month &&
+             appointment.startAt.day == date.day;
+    }).toList();
+    
+    // Check if any appointment conflicts with this time slot
+    return salonAppointments.any((appointment) {
+      // Create DateTime objects for comparison
+      final appointmentStart = appointment.startAt;
+      final appointmentEnd = appointment.endAt;
+      final requestedStart = DateTime(date.year, date.month, date.day, time.hour, time.minute);
       
-      return date.year == slotDate.year &&
-             date.month == slotDate.month &&
-             date.day == slotDate.day &&
-             time.hour == slotTime.hour &&
-             time.minute == slotTime.minute;
+      // Calculate end time for the requested slot based on service duration
+      final serviceDuration = _selectedService?.durationMinutes ?? 60; // Default to 60 minutes
+      final requestedEnd = requestedStart.add(Duration(minutes: serviceDuration));
+      
+      // Check for time overlap
+      final hasOverlap = (requestedStart.isBefore(appointmentEnd) && requestedEnd.isAfter(appointmentStart));
+      
+      // Time slot is unavailable if:
+      // 1. There's a time overlap, AND
+      // 2. The appointment is not cancelled or completed
+      return hasOverlap && 
+             appointment.status != AppointmentStatus.cancelled &&
+             appointment.status != AppointmentStatus.completed &&
+             appointment.status != AppointmentStatus.noShow;
     });
   }
 

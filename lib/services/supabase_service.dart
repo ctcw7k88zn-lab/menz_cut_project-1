@@ -1685,13 +1685,16 @@ class SupabaseService {
       
       if (reviews.isEmpty) {
         print('🔧 SupabaseService: No reviews found, setting rating to 0');
-        await _supabase
+        final updateResponse = await _supabase
             .from('salons')
             .update({
               'rating': 0.0,
               'review_count': 0,
             })
-            .eq('id', salonId);
+            .eq('id', salonId)
+            .select('id, rating, review_count')
+            .single();
+        print('🔧 SupabaseService: Update response: $updateResponse');
         return;
       }
       
@@ -1701,16 +1704,19 @@ class SupabaseService {
       
       print('🔧 SupabaseService: Calculated rating: $averageRating from ${reviews.length} reviews');
       
-      // Update salon
-      await _supabase
+      // Update salon with explicit return
+      final updateResponse = await _supabase
           .from('salons')
           .update({
             'rating': averageRating,
             'review_count': reviews.length,
           })
-          .eq('id', salonId);
+          .eq('id', salonId)
+          .select('id, rating, review_count')
+          .single();
       
       print('✅ SupabaseService: Salon rating fixed - Rating: $averageRating, Reviews: ${reviews.length}');
+      print('✅ SupabaseService: Update response: $updateResponse');
     } catch (e) {
       print('❌ SupabaseService: Error fixing salon rating: $e');
     }

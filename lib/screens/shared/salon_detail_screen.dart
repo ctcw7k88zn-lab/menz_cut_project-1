@@ -30,10 +30,12 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   late Animation<double> _favoriteScaleAnimation;
   bool _isFavorite = false;
   ServiceModel? _selectedService;
+  late SalonModel _currentSalon;
 
   @override
   void initState() {
     super.initState();
+    _currentSalon = widget.salon;
     _tabController = TabController(length: 4, vsync: this);
     _favoriteAnimationController = AnimationController(
       duration: const Duration(milliseconds: 200),
@@ -62,16 +64,16 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
   @override
   Widget build(BuildContext context) {
     // Debug: Print salon information
-    print('SalonDetailScreen: Building for salon: ${widget.salon.name}');
-    print('SalonDetailScreen: Salon ID: ${widget.salon.id}');
-    print('SalonDetailScreen: Salon image: ${widget.salon.primaryImageUrl}');
+    print('SalonDetailScreen: Building for salon: ${_currentSalon.name}');
+    print('SalonDetailScreen: Salon ID: ${_currentSalon.id}');
+    print('SalonDetailScreen: Salon image: ${_currentSalon.primaryImageUrl}');
     
-    final servicesAsync = ref.watch(servicesBySalonProvider(widget.salon.id));
+    final servicesAsync = ref.watch(servicesBySalonProvider(_currentSalon.id));
 
     return servicesAsync.when(
       loading: () => Scaffold(
         appBar: AppBar(
-          title: Text(widget.salon.name),
+          title: Text(_currentSalon.name),
           backgroundColor: AppTheme.primaryMauve,
           foregroundColor: Colors.white,
         ),
@@ -89,8 +91,8 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
       error: (error, stack) {
         print('SalonDetailScreen: Error loading services: $error');
         return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.salon.name),
+        appBar: AppBar(
+          title: Text(_currentSalon.name),
             backgroundColor: AppTheme.primaryMauve,
             foregroundColor: Colors.white,
           ),
@@ -141,10 +143,10 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Hero(
-                      tag: 'salon_image_${widget.salon.id}',
-                      child: Image.network(
-                        widget.salon.primaryImageUrl,
+                      Hero(
+                        tag: 'salon_image_${_currentSalon.id}',
+                        child: Image.network(
+                          _currentSalon.primaryImageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -186,7 +188,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.salon.name,
+                              _currentSalon.name,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 28,
@@ -199,10 +201,10 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                RatingStars(rating: widget.salon.rating),
+                                RatingStars(rating: _currentSalon.rating),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '${widget.salon.rating.toStringAsFixed(1)} (${widget.salon.reviewCount} reviews)',
+                                  '${_currentSalon.rating.toStringAsFixed(1)} (${_currentSalon.reviewCount} reviews)',
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 14,
@@ -221,7 +223,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    widget.salon.address,
+                                    _currentSalon.address,
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 14,
@@ -425,9 +427,9 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                   border: Border.all(color: Colors.grey.withOpacity(0.1)),
                 ),
                 child: Text(
-                  widget.salon.description.isNotEmpty 
-                    ? widget.salon.description 
-                    : 'Welcome to ${widget.salon.name}! We are a professional salon dedicated to providing exceptional beauty and grooming services. Our experienced team is committed to making you look and feel your best.',
+                  _currentSalon.description.isNotEmpty 
+                    ? _currentSalon.description 
+                    : 'Welcome to ${_currentSalon.name}! We are a professional salon dedicated to providing exceptional beauty and grooming services. Our experienced team is committed to making you look and feel your best.',
                   style: const TextStyle(
                     fontSize: 16,
                     height: 1.6,
@@ -483,9 +485,9 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                 ],
               ),
               const SizedBox(height: 20),
-              _buildModernContactItem(Icons.phone, 'Phone', widget.salon.phone.isNotEmpty ? widget.salon.phone : 'Not provided'),
+              _buildModernContactItem(Icons.phone, 'Phone', _currentSalon.phone.isNotEmpty ? _currentSalon.phone : 'Not provided'),
               const SizedBox(height: 12),
-              _buildModernContactItem(Icons.email, 'Email', widget.salon.email.isNotEmpty ? widget.salon.email : 'Not provided'),
+              _buildModernContactItem(Icons.email, 'Email', _currentSalon.email.isNotEmpty ? _currentSalon.email : 'Not provided'),
             ],
           ),
         ),
@@ -534,7 +536,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                 ],
               ),
               const SizedBox(height: 12),
-              ...widget.salon.openingHours.entries.map((entry) {
+              ..._currentSalon.openingHours.entries.map((entry) {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(16),
@@ -622,7 +624,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: (widget.salon.amenities?.keys.toList() ?? ['Free WiFi', 'Parking', 'Air Conditioning', 'Refreshments']).map((amenity) {
+                children: (_currentSalon.amenities?.keys.toList() ?? ['Free WiFi', 'Parking', 'Air Conditioning', 'Refreshments']).map((amenity) {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -756,10 +758,12 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
 
   Widget _buildReviewsTab() {
     return ReviewDisplayWidget(
-      salonId: widget.salon.id,
+      salonId: _currentSalon.id,
       onReviewSubmitted: () {
         // Refresh reviews when a new review is submitted
-        ref.read(reviewsProvider.notifier).loadReviewsForSalon(widget.salon.id);
+        ref.read(reviewsProvider.notifier).loadReviewsForSalon(_currentSalon.id);
+        // Also refresh salon rating after new review
+        _fixSalonRating();
       },
     );
   }
@@ -783,9 +787,9 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
             mainAxisSpacing: 16,
             childAspectRatio: 1.0,
           ),
-          itemCount: widget.salon.images.length,
+          itemCount: _currentSalon.images.length,
           itemBuilder: (context, index) {
-            return _buildGalleryImage(widget.salon.images[index]);
+            return _buildGalleryImage(_currentSalon.images[index]);
           },
         ),
       ],
@@ -1026,7 +1030,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
     }
     
     context.push('/booking', extra: {
-      'salon': widget.salon,
+      'salon': _currentSalon,
       'service': _selectedService,
     });
   }
@@ -1092,10 +1096,28 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
 
   Future<void> _fixSalonRating() async {
     try {
-      // Fix the salon rating to match the actual reviews
-      await AppApi.fixSalonRating(widget.salon.id);
+      // Get the actual reviews to calculate the real rating
+      final reviews = await AppApi.getReviewsForSalon(_currentSalon.id);
+      
+      if (reviews.isNotEmpty) {
+        // Calculate the actual rating from reviews
+        final totalRating = reviews.fold<int>(0, (sum, review) => sum + review.rating);
+        final actualRating = totalRating / reviews.length;
+        
+        print('🔧 SalonDetailScreen: Calculated actual rating: $actualRating from ${reviews.length} reviews');
+        
+        // Update the current salon data with the actual rating
+        if (mounted) {
+          setState(() {
+            _currentSalon = _currentSalon.copyWith(
+              rating: actualRating,
+              reviewCount: reviews.length,
+            );
+          });
+        }
+      }
     } catch (e) {
-      print('Error fixing salon rating: $e');
+      print('Error fixing salon rating sampling: $e');
     }
   }
 }

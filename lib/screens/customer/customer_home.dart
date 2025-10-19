@@ -70,6 +70,26 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
       if (authState.user != null) {
         ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
       }
+      
+      // Refresh salon ratings immediately and after delays to get updated data
+      _refreshSalonRatings();
+      Future.delayed(const Duration(seconds: 1), () {
+        _refreshSalonRatings();
+      });
+      Future.delayed(const Duration(seconds: 3), () {
+        _refreshSalonRatings();
+      });
+      
+      // Also reload all salon data to ensure fresh data
+      Future.delayed(const Duration(seconds: 2), () {
+        ref.read(salonsProvider.notifier).refreshSalons();
+      });
+      
+      // Force a complete reload after 5 seconds
+      Future.delayed(const Duration(seconds: 5), () {
+        print('🔄 Force reloading all salon data...');
+        ref.read(salonsProvider.notifier).loadSalons();
+      });
     });
   }
 
@@ -78,6 +98,20 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     _searchController.dispose();
     _fabAnimationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshSalonRatings() async {
+    try {
+      // Refresh salon ratings to get updated data
+      final salonsState = ref.read(salonsProvider);
+      for (final salon in salonsState.salons) {
+        // Refresh all salons to ensure we have the latest rating data
+        print('🔄 Refreshing salon rating for: ${salon.name} (current: ${salon.rating})');
+        await ref.read(salonsProvider.notifier).refreshSalonWithReviews(salon.id);
+      }
+    } catch (e) {
+      print('Error refreshing salon ratings: $e');
+    }
   }
 
   @override

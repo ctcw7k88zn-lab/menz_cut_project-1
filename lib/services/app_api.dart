@@ -182,7 +182,26 @@ class AppApi {
       if (salon == null) throw Exception('Salon not found');
       return salon;
     } else {
-      return SupabaseService.getSalonById(id);
+      final salon = await SupabaseService.getSalonById(id);
+      
+      // Calculate actual rating from reviews
+      try {
+        final reviews = await SupabaseService.getReviewsForSalon(id);
+        if (reviews.isNotEmpty) {
+          final totalRating = reviews.fold<int>(0, (sum, review) => sum + review.rating);
+          final actualRating = totalRating / reviews.length;
+          
+          // Return salon with updated rating
+          return salon.copyWith(
+            rating: actualRating,
+            reviewCount: reviews.length,
+          );
+        }
+      } catch (e) {
+        print('Error calculating salon rating: $e');
+      }
+      
+      return salon;
     }
   }
 

@@ -123,6 +123,8 @@ class SalonsNotifier extends StateNotifier<SalonsState> {
     try {
       final allSalons = await AppApi.getSalons();
       
+      print('🔄 Loaded ${allSalons.length} salons from API');
+      
       // Apply filters locally
       var filteredSalons = allSalons.where((salon) {
         // Search filter
@@ -168,6 +170,37 @@ class SalonsNotifier extends StateNotifier<SalonsState> {
 
   Future<void> refreshSalons() async {
     await loadSalons();
+  }
+
+  Future<void> refreshSalonWithReviews(String salonId) async {
+    try {
+      // Get the salon with updated rating from reviews
+      final salon = await AppApi.getSalonById(salonId);
+      
+      print('🔄 Updated salon data: ${salon.name} - Rating: ${salon.rating}, Reviews: ${salon.reviewCount}');
+      
+      // Update the salon in the current list
+      final updatedSalons = state.salons.map((s) {
+        if (s.id == salonId) {
+          print('🔄 Replacing salon in list: ${s.name} (${s.rating}) -> ${salon.name} (${salon.rating})');
+          return salon;
+        }
+        return s;
+      }).toList();
+      
+      // Update the salon cache
+      final updatedCache = Map<String, SalonModel>.from(state.salonCache);
+      updatedCache[salonId] = salon;
+      
+      state = state.copyWith(
+        salons: updatedSalons,
+        salonCache: updatedCache,
+      );
+      
+      print('🔄 Salon list updated with ${updatedSalons.length} salons');
+    } catch (e) {
+      print('Error refreshing salon with reviews: $e');
+    }
   }
 
   Future<SalonModel> getSalonById(String salonId) async {

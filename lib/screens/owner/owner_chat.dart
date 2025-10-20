@@ -303,6 +303,51 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
         
         return chatThreadsState.when(
           data: (threads) {
+            // If we have a specific customer from navigation, create a temporary thread entry
+            if (widget.customerId != null && widget.customerName != null) {
+              // Check if the thread exists in the loaded threads
+              final existingThread = threads.firstWhere(
+                (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
+                orElse: () => {},
+              );
+              
+              if (existingThread.isEmpty) {
+                // Create a temporary thread entry for the specific customer
+                final tempThread = {
+                  'id': _selectedChatId,
+                  'thread_id': _selectedChatId,
+                  'customerId': widget.customerId,
+                  'customerName': widget.customerName,
+                  'customerImage': widget.customerImage,
+                  'participant_1': {
+                    'id': ref.read(currentUserProvider)?.id,
+                    'full_name': ref.read(currentUserProvider)?.fullName,
+                    'avatar_url': ref.read(currentUserProvider)?.profileImageUrl,
+                  },
+                  'participant_2': {
+                    'id': widget.customerId,
+                    'full_name': widget.customerName,
+                    'avatar_url': widget.customerImage,
+                  },
+                };
+                
+                // Use the temporary thread
+                final normalized = {
+                  'customerId': widget.customerId,
+                  'customerName': widget.customerName,
+                  'customerImage': widget.customerImage,
+                };
+                
+                return Column(
+                  children: [
+                    _buildChatHeader(normalized),
+                    Expanded(child: _buildMessagesList()),
+                    _buildMessageInput(),
+                  ],
+                );
+              }
+            }
+            
             // Resolve selected thread safely using id or thread_id
             final selected = threads.firstWhere(
               (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
@@ -323,12 +368,12 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
               'customerImage': other?['avatar_url'],
             };
     
-    return Column(
-          children: [
+            return Column(
+              children: [
                 _buildChatHeader(normalized),
-        Expanded(child: _buildMessagesList()),
-        _buildMessageInput(),
-      ],
+                Expanded(child: _buildMessagesList()),
+                _buildMessageInput(),
+              ],
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -970,48 +1015,26 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
 
   void _startChatWithSpecificCustomer() async {
     try {
-      // Get real customer data from the database
-      final customerProfile = await AppApi.getUserProfile(widget.customerId!);
+      print('🔍 Starting chat with specific customer: ${widget.customerId}');
       
-      // Create a new chat entry for the specific customer with real data
-      final newChat = {
-        'id': 'chat_${widget.customerId}_${DateTime.now().millisecondsSinceEpoch}',
-        'customerId': widget.customerId,
-        'customerName': customerProfile.fullName,
-        'customerEmail': customerProfile.email,
-        'customerImage': customerProfile.profileImageUrl ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-        'lastMessage': 'Chat started',
-        'lastMessageTime': 'now',
-        'unreadCount': 0,
-        'isOnline': true,
-      };
-      
-      setState(() {
-        _chatList.insert(0, newChat);
-        _selectedChatId = newChat['id'] as String;
-      });
-      
-      // Initialize real chat with the customer
-      await _initializeRealChat(widget.customerId!);
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // Get or create thread with the customer
+        final threadId = await AppApi.getOrCreateThread(authState.user!.id, widget.customerId!);
+        print('🔍 Thread ID: $threadId');
+        
+        // Load messages for this thread
+        await ref.read(chatProvider.notifier).loadMessagesForThread(threadId, authState.user!.id);
+        
+        // Set the selected chat ID to the thread ID
+        setState(() {
+          _selectedChatId = threadId;
+        });
+        
+        print('🔍 Chat initialized with thread: $threadId');
+      }
     } catch (e) {
-      print('Error starting chat with specific customer: $e');
-      // Fallback to using provided data
-      final newChat = {
-        'id': 'chat_${widget.customerId}_${DateTime.now().millisecondsSinceEpoch}',
-        'customerId': widget.customerId,
-        'customerName': widget.customerName ?? 'Customer',
-        'customerEmail': '',
-        'customerImage': widget.customerImage ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-        'lastMessage': 'Chat started',
-        'lastMessageTime': 'now',
-        'unreadCount': 0,
-        'isOnline': true,
-      };
-      
-      setState(() {
-        _chatList.insert(0, newChat);
-        _selectedChatId = newChat['id'] as String;
-      });
+      print('❌ Error starting chat with specific customer: $e');
     }
   }
   

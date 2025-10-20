@@ -946,9 +946,12 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
 
   Future<void> _chatWithCustomer(AppointmentModel appointment) async {
     try {
+      print('🔍 Starting chat with customer for appointment: ${appointment.id}');
+      
       final authState = ref.read(authProvider);
       final ownerId = authState.user?.id;
       if (ownerId == null) {
+        print('❌ Owner not logged in');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Not logged in'),
@@ -961,6 +964,7 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
       // Ensure we have a valid customer id
       final customerId = appointment.customerId;
       if (customerId.isEmpty) {
+        print('❌ Customer ID is empty for appointment: ${appointment.id}');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Customer not found for this appointment'),
@@ -970,21 +974,28 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         return;
       }
 
+      print('🔍 Creating/getting thread between owner: $ownerId and customer: $customerId');
       await AppApi.getOrCreateThread(ownerId, customerId);
 
+      print('🔍 Navigating to owner-chat with customer info');
       // Navigate to owner chat screen with customer information
-      context.push('/owner-chat', extra: {
-        'customerId': customerId,
-        'customerName': appointment.customerDetails?['name'] ?? 'Customer',
-        'customerImage': appointment.customerDetails?['imageUrl'],
-      });
+      if (mounted) {
+        context.push('/owner-chat', extra: {
+          'customerId': customerId,
+          'customerName': appointment.customerDetails?['name'] ?? 'Customer',
+          'customerImage': appointment.customerDetails?['imageUrl'],
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to start chat: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('❌ Error in _chatWithCustomer: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start chat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

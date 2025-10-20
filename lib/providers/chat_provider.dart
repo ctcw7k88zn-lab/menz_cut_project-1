@@ -256,7 +256,8 @@ class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
         state = AsyncValue.data(updatedMessages);
       });
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      print('Error marking message as read: $error');
+      // Don't update state on error to avoid widget disposal issues
     }
   }
 
@@ -274,7 +275,8 @@ class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
         }
       }
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      print('Error marking thread as read: $error');
+      // Don't update state on error to avoid widget disposal issues
     }
   }
 

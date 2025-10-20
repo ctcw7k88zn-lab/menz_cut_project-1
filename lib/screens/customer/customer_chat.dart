@@ -605,7 +605,7 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
       ),
       child: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        currentIndex: 3,
+        currentIndex: 0, // Home tab is active (since we're navigating from home)
         backgroundColor: Colors.transparent,
         elevation: 0,
         selectedItemColor: AppTheme.primaryMauve,
@@ -622,7 +622,7 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
               context.push('/customer-appointments');
               break;
             case 3:
-              // Already on chat
+              context.push('/ai-hair-suggestions');
               break;
             case 4:
               context.push('/customer-profile');
@@ -640,11 +640,11 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
-            label: 'Appointments',
+            label: 'Bookings',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: 'Chat',
+            icon: Icon(Icons.auto_awesome),
+            label: 'AI Style',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),

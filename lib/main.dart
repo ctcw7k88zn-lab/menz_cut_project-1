@@ -18,6 +18,7 @@ import 'screens/customer/customer_appointments.dart';
 import 'screens/customer/customer_profile.dart';
 import 'screens/customer/customer_map.dart';
 import 'screens/customer/customer_salon_list.dart';
+import 'screens/customer/customer_chat.dart';
 import 'screens/customer/ai_hair_suggestions.dart';
 import 'screens/owner/owner_dashboard.dart';
 import 'screens/owner/owner_chat.dart';
@@ -144,6 +145,16 @@ class _SalonAppState extends ConsumerState<SalonApp> {
         GoRoute(
           path: '/ai-hair-suggestions',
           builder: (context, state) => const AIHairSuggestionsScreen(),
+        ),
+        GoRoute(
+          path: '/customer-chat',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return CustomerChatScreen(
+              salonId: extra?['salonId'] as String?,
+              salonName: extra?['salonName'] as String?,
+            );
+          },
         ),
         GoRoute(
           path: '/owner-dashboard',

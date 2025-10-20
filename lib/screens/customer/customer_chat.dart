@@ -11,7 +11,14 @@ import '../../models/message_model.dart';
 import '../../services/app_api.dart';
 
 class CustomerChatScreen extends ConsumerStatefulWidget {
-  const CustomerChatScreen({super.key});
+  final String? salonId;
+  final String? salonName;
+  
+  const CustomerChatScreen({
+    super.key,
+    this.salonId,
+    this.salonName,
+  });
 
   @override
   ConsumerState<CustomerChatScreen> createState() => _CustomerChatScreenState();
@@ -52,8 +59,14 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     try {
       final authState = ref.read(authProvider);
       if (authState.user != null) {
-        // For demo, use a mock salon owner ID
-        _salonOwnerId = 'owner_1'; // This would come from salon selection
+        // Get salon owner ID from salon ID
+        if (widget.salonId != null) {
+          final salon = await AppApi.getSalonById(widget.salonId!);
+          _salonOwnerId = salon.ownerId;
+        } else {
+          // Fallback to mock for demo
+          _salonOwnerId = 'owner_1';
+        }
         
         // Get or create thread
         _currentThreadId = await ref.read(chatProvider.notifier).getOrCreateThread(

@@ -202,6 +202,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                                   );
                                 },
                               ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: () => _showChatOptions(),
+                                icon: const Icon(Icons.chat_outlined, color: Colors.white),
+                              ),
                             ],
                           ),
                         ],
@@ -694,6 +699,73 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
             _filters = filters;
           });
         },
+      ),
+    );
+  }
+
+  void _showChatOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Chat Options',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryMauve),
+              title: const Text('Recent Chats'),
+              subtitle: const Text('Continue conversations with salon owners'),
+              onTap: () {
+                Navigator.pop(context);
+                // For now, show a message that this feature is coming soon
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Recent chats feature coming soon!'),
+                    backgroundColor: AppTheme.infoColor,
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline, color: AppTheme.accentGold),
+              title: const Text('Support Chat'),
+              subtitle: const Text('Get help from our support team'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Support chat feature coming soon!'),
+                    backgroundColor: AppTheme.infoColor,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }

@@ -1281,59 +1281,44 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
       try {
         final authState = ref.read(authProvider);
         if (authState.user != null && _selectedChatId != null) {
-          // Resolve selected thread from provider (fallback to empty map)
-          final threadsState = ref.read(chatThreadsProvider);
-          Map<String, dynamic> selected = const {};
-          threadsState.when(
-            data: (threads) {
-              selected = threads.firstWhere(
+          print('🔍 Sending message: $message');
+          print('🔍 Selected chat ID: $_selectedChatId');
+          
+          // Determine customerId based on the current context
+          String? customerId;
+          
+          // If we have a specific customer from navigation, use that
+          if (widget.customerId != null) {
+            customerId = widget.customerId;
+            print('🔍 Using customer from widget: $customerId');
+          } else {
+            // Try to get customer from threads provider
+            final threadsState = ref.read(chatThreadsProvider);
+            threadsState.whenData((threads) {
+              final selectedThread = threads.firstWhere(
                 (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
                 orElse: () => <String, dynamic>{},
               );
-            },
-            loading: () {},
-            error: (_, __) {},
-          );
-
-          if (selected.isEmpty) {
-            // Fallback to any existing local selection structure
-            try {
-              final local = _chatList.firstWhere(
-                (chat) => chat['id'] == _selectedChatId,
-                orElse: () => <String, dynamic>{},
-              );
-              if (local.isNotEmpty) selected = local;
-            } catch (_) {}
-          }
-
-          if (selected.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Unable to resolve chat thread')),
-            );
-            return;
-          }
-
-          // Determine customerId (the other participant)
-          String? customerId;
-          if (selected['customerId'] is String) {
-            customerId = selected['customerId'] as String;
-          }
-          final currentId = authState.user!.id;
-          final p1 = selected['participant_1'];
-          final p2 = selected['participant_2'];
-          if (customerId == null) {
-            if (p1 is Map && p2 is Map) {
-              final p1Id = p1['id'] as String?;
-              final p2Id = p2['id'] as String?;
-              if (p1Id != null && p2Id != null) {
-                customerId = p1Id == currentId ? p2Id : p1Id;
+              
+              if (selectedThread.isNotEmpty) {
+                final p1 = selectedThread['participant_1'] as Map<String, dynamic>?;
+                final p2 = selectedThread['participant_2'] as Map<String, dynamic>?;
+                final currentId = authState.user!.id;
+                
+                if (p1 != null && p2 != null) {
+                  final p1Id = p1['id'] as String?;
+                  final p2Id = p2['id'] as String?;
+                  if (p1Id != null && p2Id != null) {
+                    customerId = p1Id == currentId ? p2Id : p1Id;
+                    print('🔍 Found customer from thread: $customerId');
+                  }
+                }
               }
-            } else if (p1 is String && p2 is String) {
-              customerId = p1 == currentId ? p2 : p1;
-            }
+            });
           }
 
-          if (customerId == null || customerId.isEmpty) {
+          if (customerId == null || customerId!.isEmpty) {
+            print('❌ Unable to determine customer ID');
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Unable to determine recipient')),
             );
@@ -1341,24 +1326,27 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
           }
 
           // Get or create thread
-          final threadId = await AppApi.getOrCreateThread(currentId, customerId);
+          final threadId = await AppApi.getOrCreateThread(authState.user!.id, customerId!);
+          print('🔍 Using thread ID: $threadId');
 
           // Send real message
           await ref.read(chatProvider.notifier).sendMessage(
             threadId: threadId,
-            senderId: currentId,
-            receiverId: customerId,
-        text: message,
-      );
+            senderId: authState.user!.id,
+            receiverId: customerId!,
+            text: message,
+          );
+
+          print('✅ Message sent successfully');
 
           // Clear input and update state
-      _messageController.clear();
-      setState(() {
-        _isTyping = false;
-      });
+          _messageController.clear();
+          setState(() {
+            _isTyping = false;
+          });
         }
       } catch (e) {
-        print('Error sending message: $e');
+        print('❌ Error sending message: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send message: ${e.toString()}'),

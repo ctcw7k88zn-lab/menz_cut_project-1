@@ -36,6 +36,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   
   String? _selectedChatId;
   bool _isTyping = false;
+  bool _isOtherTyping = false;
 
   // Mock chat data
   final List<Map<String, dynamic>> _chatList = [
@@ -173,7 +174,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
 
   void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatProvider.notifier).loadAllMessages();
+      ref.read(chatThreadsProvider.notifier).loadChatThreads();
     });
   }
 
@@ -211,6 +212,10 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   }
 
   Widget _buildChatList() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final chatThreadsState = ref.watch(chatThreadsProvider);
+        
     return CustomScrollView(
       slivers: [
         _buildAppBar(),
@@ -227,28 +232,78 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
             ),
           ),
         ),
-        SliverList(
+            chatThreadsState.when(
+              data: (threads) => SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              final chat = _chatList[index];
-              return _buildChatListItem(chat);
-            },
-            childCount: _chatList.length,
+                    final thread = threads[index];
+                    return _buildChatListItem(thread);
+                  },
+                  childCount: threads.length,
+                ),
+              ),
+              loading: () => const SliverToBoxAdapter(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+              ),
+              error: (error, stack) => SliverToBoxAdapter(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text('Error loading chats: $error'),
+                  ),
+                ),
           ),
         ),
       ],
+        );
+      },
     );
   }
 
   Widget _buildChatView() {
-    final selectedChat = _chatList.firstWhere((chat) => chat['id'] == _selectedChatId);
+    return Consumer(
+      builder: (context, ref, child) {
+        final chatThreadsState = ref.watch(chatThreadsProvider);
+        
+        return chatThreadsState.when(
+          data: (threads) {
+            // Resolve selected thread safely using id or thread_id
+            final selected = threads.firstWhere(
+              (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
+              orElse: () => {},
+            );
+            if (selected.isEmpty) {
+              return const Center(child: Text('No conversation selected'));
+            }
+
+            // Normalize header data (customer target)
+            final ownerId = ref.read(currentUserProvider)?.id;
+            final p1 = selected['participant_1'] as Map<String, dynamic>?;
+            final p2 = selected['participant_2'] as Map<String, dynamic>?;
+            final other = (p1 != null && p1['id'] != ownerId) ? p1 : p2;
+            final normalized = {
+              'customerId': other?['id'],
+              'customerName': other?['full_name'],
+              'customerImage': other?['avatar_url'],
+            };
     
     return Column(
           children: [
-        _buildChatHeader(selectedChat),
+                _buildChatHeader(normalized),
         Expanded(child: _buildMessagesList()),
         _buildMessageInput(),
       ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => Center(child: Text('Error: $error')),
+        );
+      },
     );
   }
 
@@ -313,107 +368,118 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   }
 
   Widget _buildChatHeader(Map<String, dynamic> chat) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => setState(() => _selectedChatId = null),
-            child: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryMauve),
-          ),
-          const SizedBox(width: 12),
-          Stack(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+    return FutureBuilder<UserModel?>(
+      future: AppApi.getUserProfile(chat['customerId']),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          print('Error fetching customer profile: ${snapshot.error}');
+        }
+        
+        final customer = snapshot.data;
+        final customerName = customer?.fullName ?? chat['customerName'] ?? 'Customer';
+        final customerImage = customer?.profileImageUrl ?? chat['customerImage'];
+        final customerId = customer?.id ?? (chat['customerId'] as String? ?? '');
+
+        return Row(
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.grey.shade200,
+                  backgroundImage: (customerImage != null && customerImage.toString().isNotEmpty)
+                      ? NetworkImage(customerImage.toString())
+                      : null,
+                  child: (customerImage == null || customerImage.toString().isEmpty)
+                      ? const Icon(Icons.person, color: Colors.grey)
+                      : null,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.network(
-                    chat['customerImage'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.primaryMauve,
-                        child: const Icon(Icons.person, color: Colors.white, size: 20),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
+                  builder: (context, statusSnapshot) {
+                    final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
+                    final isOnline = status['is_online'] as bool? ?? false;
+                    if (isOnline) {
+                      return Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            border: Border.all(color: Colors.white, width: 2),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    customerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
+                    builder: (context, statusSnapshot) {
+                      final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
+                      final isOnline = status['is_online'] as bool? ?? false;
+                      final lastSeen = status['last_seen'] as String?;
+                      return Text(
+                        isOnline ? 'online' : 'last seen ${_formatLastSeen(lastSeen)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isOnline ? Colors.green : AppTheme.textSecondary,
+                        ),
                       );
                     },
                   ),
-                ),
+                ],
               ),
-              if (chat['isOnline'])
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  chat['customerName'],
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                Text(
-                  chat['isOnline'] ? 'Online' : 'Last seen ${chat['lastMessageTime']}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-          IconButton(
-            onPressed: () => _showChatOptions(chat),
-            icon: const Icon(Icons.more_vert, color: AppTheme.primaryMauve),
-          ),
-        ],
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildChatListItem(Map<String, dynamic> chat) {
+  Widget _buildChatListItem(Map<String, dynamic> thread) {
+    // Extract participant information (assuming the current user is the salon owner)
+    final participant1 = thread['participant_1'] as Map<String, dynamic>?;
+    final participant2 = thread['participant_2'] as Map<String, dynamic>?;
+    final lastMessage = thread['last_message'] as Map<String, dynamic>?;
+    
+    // Determine which participant is the customer (not the current salon owner)
+    final ownerId = ref.read(currentUserProvider)?.id;
+    final customer = (participant1 != null && participant1['id'] != ownerId)
+        ? participant1
+        : participant2;
+    final customerName = customer?['full_name'] ?? 'Customer';
+    final customerImage = customer?['avatar_url'] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100';
+    final lastAtIso = thread['last_message_at'] as String?;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: GestureDetector(
-        onTap: () => setState(() => _selectedChatId = chat['id']),
+        onTap: () => setState(() => _selectedChatId = (thread['id'] ?? thread['thread_id']) as String?),
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -447,7 +513,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(25),
                       child: Image.network(
-                        chat['customerImage'],
+                        customerImage,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -458,7 +524,6 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                       ),
                     ),
                   ),
-                  if (chat['isOnline'])
                                       Positioned(
                       bottom: 0,
                                         right: 0,
@@ -483,7 +548,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          chat['customerName'],
+                          customerName,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -491,7 +556,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                           ),
                         ),
                         Text(
-                          chat['lastMessageTime'],
+                          _formatTime(DateTime.tryParse(lastAtIso ?? '') ?? DateTime.now()),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade500,
@@ -504,7 +569,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                                         children: [
                                           Expanded(
                                             child: Text(
-                            chat['lastMessage'],
+                            lastMessage?['text'] ?? 'No messages yet',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade600,
@@ -513,7 +578,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (chat['unreadCount'] > 0)
+                        if ((thread['unreadCount'] ?? 0) > 0)
                                             Container(
                             margin: const EdgeInsets.only(left: 8),
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -522,7 +587,7 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                               borderRadius: BorderRadius.circular(10),
                                               ),
                                               child: Text(
-                              chat['unreadCount'].toString(),
+                              thread['unreadCount'].toString(),
                                                 style: const TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 10,
@@ -551,9 +616,9 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
           data: (messages) => ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-            itemCount: messages.length + (_isTyping ? 1 : 0),
+            itemCount: messages.length + (_isOtherTyping ? 1 : 0),
       itemBuilder: (context, index) {
-              if (index == messages.length && _isTyping) {
+              if (index == messages.length && _isOtherTyping) {
           return _buildTypingIndicator();
         }
               final message = messages[index];
@@ -614,13 +679,22 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                     ),
                   ),
                   const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                   Text(
-                    _formatTime(message.createdAt),
+                        _formatTime(message.createdAt),
                     style: TextStyle(
-                      color: isFromCustomer ? Colors.grey[600] : Colors.white70,
-                      fontSize: 12,
-                    ),
-              ),
+                          color: isFromCustomer ? Colors.grey[600] : Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (!isFromCustomer) ...[
+                        const SizedBox(width: 4),
+                        _buildMessageStatusIcon(message),
+                      ],
+                    ],
+                  ),
             ],
           ),
         ),
@@ -629,6 +703,41 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildMessageStatusIcon(MessageModel message) {
+    switch (message.status) {
+      case MessageStatus.sent:
+        return const Icon(
+          Icons.check,
+          size: 14,
+          color: Colors.white70,
+        );
+      case MessageStatus.delivered:
+        return const Icon(
+          Icons.done_all,
+          size: 14,
+          color: Colors.white70,
+        );
+      case MessageStatus.read:
+        return const Icon(
+          Icons.done_all,
+          size: 14,
+          color: Colors.blue,
+        );
+      case MessageStatus.failed:
+        return const Icon(
+          Icons.error_outline,
+          size: 14,
+          color: Colors.red,
+        );
+      default:
+        return const Icon(
+          Icons.check,
+          size: 14,
+          color: Colors.white70,
+        );
+    }
   }
 
   Widget _buildTypingIndicator() {
@@ -751,18 +860,43 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
     );
   }
 
+  
+
+  String _formatLastSeen(String? lastSeen) {
+    if (lastSeen == null) return 'recently';
+    
+    try {
+      final lastSeenTime = DateTime.parse(lastSeen);
+      final now = DateTime.now();
+      final difference = now.difference(lastSeenTime);
+      
+      if (difference.inMinutes < 1) {
+        return 'now';
+      } else if (difference.inHours < 1) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inDays < 1) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else {
+        return '${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+      }
+    } catch (e) {
+      return 'recently';
+    }
+  }
+
   String _formatTime(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
-    
     if (difference.inMinutes < 1) {
       return 'now';
     } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
+      return '${difference.inMinutes}m ago';
     } else if (difference.inHours < 24) {
-      return '${difference.inHours}h';
+      return '${difference.inHours}h ago';
     } else {
-      return '${difference.inDays}d';
+      return '${difference.inDays}d ago';
     }
   }
 
@@ -1024,25 +1158,80 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
       try {
         final authState = ref.read(authProvider);
         if (authState.user != null && _selectedChatId != null) {
-          // Get the selected chat to find customer ID
-          final selectedChat = _chatList.firstWhere((chat) => chat['id'] == _selectedChatId);
-          final customerId = selectedChat['customerId'];
-          
+          // Resolve selected thread from provider (fallback to empty map)
+          final threadsState = ref.read(chatThreadsProvider);
+          Map<String, dynamic> selected = const {};
+          threadsState.when(
+            data: (threads) {
+              selected = threads.firstWhere(
+                (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
+                orElse: () => <String, dynamic>{},
+              );
+            },
+            loading: () {},
+            error: (_, __) {},
+          );
+
+          if (selected.isEmpty) {
+            // Fallback to any existing local selection structure
+            try {
+              final local = _chatList.firstWhere(
+                (chat) => chat['id'] == _selectedChatId,
+                orElse: () => <String, dynamic>{},
+              );
+              if (local.isNotEmpty) selected = local;
+            } catch (_) {}
+          }
+
+          if (selected.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Unable to resolve chat thread')),
+            );
+            return;
+          }
+
+          // Determine customerId (the other participant)
+          String? customerId;
+          if (selected['customerId'] is String) {
+            customerId = selected['customerId'] as String;
+          }
+          final currentId = authState.user!.id;
+          final p1 = selected['participant_1'];
+          final p2 = selected['participant_2'];
+          if (customerId == null) {
+            if (p1 is Map && p2 is Map) {
+              final p1Id = p1['id'] as String?;
+              final p2Id = p2['id'] as String?;
+              if (p1Id != null && p2Id != null) {
+                customerId = p1Id == currentId ? p2Id : p1Id;
+              }
+            } else if (p1 is String && p2 is String) {
+              customerId = p1 == currentId ? p2 : p1;
+            }
+          }
+
+          if (customerId == null || customerId.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Unable to determine recipient')),
+            );
+            return;
+          }
+
           // Get or create thread
-          final threadId = await AppApi.getOrCreateThread(authState.user!.id, customerId);
-          
+          final threadId = await AppApi.getOrCreateThread(currentId, customerId);
+
           // Send real message
           await ref.read(chatProvider.notifier).sendMessage(
             threadId: threadId,
-            senderId: authState.user!.id,
+            senderId: currentId,
             receiverId: customerId,
-        text: message,
-      );
-          
-          // Update local chat list
+            text: message,
+          );
+
+          // Clear input and update state
+          _messageController.clear();
           setState(() {
-            selectedChat['lastMessage'] = message;
-            selectedChat['lastMessageTime'] = 'now';
+            _isTyping = false;
           });
         }
       } catch (e) {
@@ -1054,15 +1243,11 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
           ),
         );
       }
-      
-      _messageController.clear();
-      setState(() {
-        _isTyping = false;
-      });
-      
+
+      // Scroll to bottom after a tick
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
+        _scrollController.position.maxScrollExtent + 80,
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     }
@@ -1282,4 +1467,5 @@ class _StartNewChatModalState extends ConsumerState<StartNewChatModal> {
       ),
     );
   }
+
 }

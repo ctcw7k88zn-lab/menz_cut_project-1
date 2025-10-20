@@ -729,8 +729,7 @@ class SupabaseService {
       final existingThread = await _supabase
           .from('chat_threads')
           .select('thread_id')
-          .or('participant_1.eq.$user1Id,participant_2.eq.$user1Id')
-          .or('participant_1.eq.$user2Id,participant_2.eq.$user2Id')
+          .or('and(participant_1.eq.$user1Id,participant_2.eq.$user2Id),and(participant_1.eq.$user2Id,participant_2.eq.$user1Id)')
           .maybeSingle();
       
       if (existingThread != null) {
@@ -909,6 +908,10 @@ class SupabaseService {
   }
 
   // Helper methods
+  static Future<UserModel> getUserProfile(String userId) async {
+    return await _getUserProfile(userId);
+  }
+
   static Future<UserModel> _getUserProfile(String userId) async {
     try {
       print('Fetching profile for user: $userId');

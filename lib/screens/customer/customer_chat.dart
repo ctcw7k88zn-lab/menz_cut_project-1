@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/animated_button.dart' as custom;
 import '../../models/message_model.dart';
+import '../../models/salon_model.dart';
 import '../../services/app_api.dart';
 
 class CustomerChatScreen extends ConsumerStatefulWidget {
@@ -222,83 +223,130 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
   }
 
   Widget _buildHeader() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundWhite,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacing16),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => context.pop(),
-                child: AppTheme.glassCard(
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: AppTheme.textPrimary,
+    return Consumer(
+      builder: (context, ref, child) {
+        return FutureBuilder<SalonModel?>(
+          future: widget.salonId != null ? AppApi.getSalonById(widget.salonId!) : null,
+          builder: (context, snapshot) {
+            final salon = snapshot.data;
+            final salonName = salon?.name ?? widget.salonName ?? 'Salon';
+            final salonImage = salon?.primaryImageUrl;
+            
+            return Container(
+              decoration: BoxDecoration(
+                color: AppTheme.backgroundWhite,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
-                  padding: const EdgeInsets.all(AppTheme.spacing8),
-                ),
+                ],
               ),
-              const SizedBox(width: AppTheme.spacing12),
-              // Salon Avatar
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: AppTheme.primaryGradient,
-                ),
-                child: const Icon(
-                  Icons.business,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacing12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Menz Cut Salon',
-                      style: AppTheme.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w600,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppTheme.spacing16),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.pop(),
+                        child: AppTheme.glassCard(
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: AppTheme.textPrimary,
+                          ),
+                          padding: const EdgeInsets.all(AppTheme.spacing8),
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Online now',
-                      style: AppTheme.bodySmall.copyWith(
-                        color: AppTheme.successColor,
+                      const SizedBox(width: AppTheme.spacing12),
+                      // Salon Avatar
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: salonImage != null ? null : AppTheme.primaryGradient,
+                        ),
+                        child: salonImage != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Image.network(
+                                  salonImage,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: AppTheme.primaryGradient,
+                                      ),
+                                      child: const Icon(
+                                        Icons.business,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                            : const Icon(
+                                Icons.business,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  // TODO: Show salon info
-                },
-                child: AppTheme.glassCard(
-                  child: const Icon(
-                    Icons.info_outline,
-                    color: AppTheme.textPrimary,
+                      const SizedBox(width: AppTheme.spacing12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              salonName,
+                              style: AppTheme.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            FutureBuilder<Map<String, dynamic>>(
+                              future: widget.salonId != null 
+                                  ? AppApi.getOnlineStatus((salon?.ownerId ?? '').isNotEmpty ? salon!.ownerId : 'noop')
+                                  : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
+                              builder: (context, statusSnapshot) {
+                                final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
+                                final isOnline = status['is_online'] as bool? ?? false;
+                                final lastSeen = status['last_seen'] as String?;
+                                return Text(
+                                  isOnline ? 'online' : 'last seen ${_formatLastSeen(lastSeen)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isOnline ? Colors.green : AppTheme.textSecondary,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          // TODO: Show salon info
+                        },
+                        child: AppTheme.glassCard(
+                          child: const Icon(
+                            Icons.info_outline,
+                            color: AppTheme.textPrimary,
+                          ),
+                          padding: const EdgeInsets.all(AppTheme.spacing8),
+                        ),
+                      ),
+                    ],
                   ),
-                  padding: const EdgeInsets.all(AppTheme.spacing8),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -637,5 +685,29 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
         ),
       ),
     );
+  }
+
+  String _formatLastSeen(String? lastSeen) {
+    if (lastSeen == null) return 'recently';
+    
+    try {
+      final lastSeenTime = DateTime.parse(lastSeen);
+      final now = DateTime.now();
+      final difference = now.difference(lastSeenTime);
+      
+      if (difference.inMinutes < 1) {
+        return 'now';
+      } else if (difference.inHours < 1) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inDays < 1) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else {
+        return '${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+      }
+    } catch (e) {
+      return 'recently';
+    }
   }
 }

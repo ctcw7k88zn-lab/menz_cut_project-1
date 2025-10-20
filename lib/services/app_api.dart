@@ -523,7 +523,7 @@ class AppApi {
       if (user == null) return [];
       
       // Get all messages for the current user
-      final messages = await SupabaseService.getMessagesByThread('user_${user.id}');
+      final messages = await SupabaseService.getMessagesByThread(user.id);
       return messages;
     }
   }
@@ -537,7 +537,7 @@ class AppApi {
       final user = _supabase.auth.currentUser;
       if (user == null) return [];
       
-      return await SupabaseService.getMessagesByThread('user_${user.id}');
+      return await SupabaseService.getMessagesByThread(user.id);
     }
   }
 
@@ -718,7 +718,7 @@ class AppApi {
         updatedAt: DateTime.now(),
       );
     } else {
-      return SupabaseService.getCurrentUser();
+      return SupabaseService.getUserProfile(userId);
     }
   }
 

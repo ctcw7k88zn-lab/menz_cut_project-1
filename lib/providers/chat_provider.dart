@@ -4,6 +4,106 @@ import 'package:uuid/uuid.dart';
 import '../models/message_model.dart';
 import '../services/app_api.dart';
 import '../services/realtime_service.dart';
+import 'auth_provider.dart';
+
+/// Chat threads provider for managing conversation list
+class ChatThreadsNotifier extends AsyncNotifier<List<Map<String, dynamic>>> {
+  final RealtimeService _realtimeService = RealtimeService();
+
+  @override
+  Future<List<Map<String, dynamic>>> build() async {
+    // Initialize with empty list
+    final threads = <Map<String, dynamic>>[];
+    
+    // Subscribe to realtime updates
+    _subscribeToRealtimeUpdates();
+    
+    return threads;
+  }
+
+  /// Subscribe to realtime message updates
+  void _subscribeToRealtimeUpdates() {
+    _realtimeService.messagesStream.listen((updatedMessage) {
+      state.whenData((threads) {
+        // Find the thread that contains this message
+        final threadIndex = threads.indexWhere(
+          (thread) => thread['threadId'] == updatedMessage.threadId,
+        );
+        
+        if (threadIndex != -1) {
+          // Update the thread with new message info
+          final updatedThreads = List<Map<String, dynamic>>.from(threads);
+          updatedThreads[threadIndex] = {
+            ...updatedThreads[threadIndex],
+            'lastMessage': updatedMessage.text,
+            // keep a raw ISO timestamp for reliable sorting and formatting
+            'last_message_at': updatedMessage.createdAt.toIso8601String(),
+            'unreadCount': updatedMessage.senderId != _getCurrentUserId() 
+                ? (updatedThreads[threadIndex]['unreadCount'] ?? 0) + 1 
+                : 0,
+          };
+          
+          // Sort threads by last message time (most recent first)
+          updatedThreads.sort((a, b) {
+            final timeA = DateTime.tryParse(a['last_message_at'] ?? '') ?? DateTime(1970);
+            final timeB = DateTime.tryParse(b['last_message_at'] ?? '') ?? DateTime(1970);
+            return timeB.compareTo(timeA);
+          });
+          
+          state = AsyncValue.data(updatedThreads);
+        }
+      });
+    });
+  }
+
+  /// Load all chat threads for the current user
+  Future<void> loadChatThreads() async {
+    state = const AsyncValue.loading();
+    try {
+      final userId = _getCurrentUserId();
+      if (userId.isEmpty) {
+        state = const AsyncValue.data(<Map<String, dynamic>>[]);
+        return;
+      }
+      final threads = await AppApi.getChatThreads(userId);
+      state = AsyncValue.data(threads);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  /// Get current user ID from auth provider
+  String _getCurrentUserId() {
+    final currentUser = ref.read(currentUserProvider);
+    return currentUser?.id ?? '';
+  }
+
+  /// Format time for display
+  String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inMinutes < 1) {
+      return 'now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
+
+  /// Refresh chat threads
+  Future<void> refreshChatThreads() async {
+    await loadChatThreads();
+  }
+}
+
+/// Chat threads provider
+final chatThreadsProvider = AsyncNotifierProvider<ChatThreadsNotifier, List<Map<String, dynamic>>>(() {
+  return ChatThreadsNotifier();
+});
 
 /// Enhanced Chat provider using AsyncNotifier for better error handling
 class ChatNotifier extends AsyncNotifier<List<MessageModel>> {

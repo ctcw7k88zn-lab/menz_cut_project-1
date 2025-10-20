@@ -456,92 +456,138 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
         final customerImage = customer?.profileImageUrl ?? chat['customerImage'];
         final customerId = customer?.id ?? (chat['customerId'] as String? ?? '');
 
-        return Row(
-        children: [
-          Stack(
-            children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.grey.shade200,
-                  backgroundImage: (customerImage != null && customerImage.toString().isNotEmpty)
-                      ? NetworkImage(customerImage.toString())
-                      : null,
-                  child: (customerImage == null || customerImage.toString().isEmpty)
-                      ? const Icon(Icons.person, color: Colors.grey)
-                      : null,
-                ),
-                FutureBuilder<Map<String, dynamic>>(
-                  future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
-                  builder: (context, statusSnapshot) {
-                    final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
-                    final isOnline = status['is_online'] as bool? ?? false;
-                    if (isOnline) {
-                      return Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      border: Border.all(color: Colors.white, width: 2),
-                            shape: BoxShape.circle,
-                    ),
-                  ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                    customerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+          child: Row(
+            children: [
+              // Back button
+              IconButton(
+                onPressed: () {
+                  setState(() => _selectedChatId = null);
+                },
+                icon: const Icon(Icons.arrow_back_ios, color: AppTheme.primaryMauve),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              
+              // Profile picture with online status
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: (customerImage != null && customerImage.toString().isNotEmpty)
+                        ? NetworkImage(customerImage.toString())
+                        : null,
+                    child: (customerImage == null || customerImage.toString().isEmpty)
+                        ? const Icon(Icons.person, color: Colors.grey, size: 20)
+                        : null,
                   ),
-                ),
-                  const SizedBox(height: 2),
                   FutureBuilder<Map<String, dynamic>>(
                     future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
                     builder: (context, statusSnapshot) {
                       final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
                       final isOnline = status['is_online'] as bool? ?? false;
-                      final lastSeen = status['last_seen'] as String?;
-                      return Text(
-                        isOnline ? 'online' : 'last seen ${_formatLastSeen(lastSeen)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                          color: isOnline ? Colors.green : AppTheme.textSecondary,
-                  ),
-                      );
+                      if (isOnline) {
+                        return Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              border: Border.all(color: Colors.white, width: 2),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
                     },
-                        ),
-                      ],
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              
+              // Customer info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
-            ),
-          const SizedBox(width: 12),
-          IconButton(
-            onPressed: _refreshMessages,
-            icon: const Icon(Icons.refresh, color: AppTheme.primaryMauve),
-            tooltip: 'Refresh messages',
+                    const SizedBox(height: 2),
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
+                      builder: (context, statusSnapshot) {
+                        final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
+                        final isOnline = status['is_online'] as bool? ?? false;
+                        final lastSeen = status['last_seen'] as String?;
+                        return Text(
+                          isOnline ? 'online' : 'last seen ${_formatLastSeen(lastSeen)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isOnline ? Colors.green : AppTheme.textSecondary,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Action buttons
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _refreshMessages,
+                    icon: const Icon(Icons.refresh, color: AppTheme.primaryMauve, size: 20),
+                    tooltip: 'Refresh messages',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      // TODO: Add more options
+                    },
+                    icon: const Icon(Icons.more_vert, color: AppTheme.primaryMauve, size: 20),
+                    tooltip: 'More options',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Widget _buildChatListItem(Map<String, dynamic> thread) {
     // Extract participant information (assuming the current user is the salon owner)

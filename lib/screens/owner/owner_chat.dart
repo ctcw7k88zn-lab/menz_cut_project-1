@@ -381,9 +381,9 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
         final customerId = customer?.id ?? (chat['customerId'] as String? ?? '');
 
         return Row(
-          children: [
-            Stack(
-              children: [
+        children: [
+          Stack(
+            children: [
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: Colors.grey.shade200,
@@ -401,39 +401,39 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                     final isOnline = status['is_online'] as bool? ?? false;
                     if (isOnline) {
                       return Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            border: Border.all(color: Colors.white, width: 2),
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      border: Border.all(color: Colors.white, width: 2),
                             shape: BoxShape.circle,
-                          ),
-                        ),
+                    ),
+                  ),
                       );
                     }
                     return const SizedBox.shrink();
                   },
                 ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                     customerName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
+                  style: const TextStyle(
+                    fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
+                    color: AppTheme.textPrimary,
                   ),
+                ),
                   const SizedBox(height: 2),
                   FutureBuilder<Map<String, dynamic>>(
                     future: customerId.isNotEmpty ? AppApi.getOnlineStatus(customerId) : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
@@ -445,15 +445,15 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                         isOnline ? 'online' : 'last seen ${_formatLastSeen(lastSeen)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
+                  style: TextStyle(
+                    fontSize: 12,
                           color: isOnline ? Colors.green : AppTheme.textSecondary,
-                        ),
+                  ),
                       );
                     },
-                  ),
-                ],
-              ),
+                        ),
+                      ],
+                    ),
             ),
           ],
         );
@@ -1225,14 +1225,14 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
             threadId: threadId,
             senderId: currentId,
             receiverId: customerId,
-            text: message,
-          );
+        text: message,
+      );
 
           // Clear input and update state
-          _messageController.clear();
-          setState(() {
-            _isTyping = false;
-          });
+      _messageController.clear();
+      setState(() {
+        _isTyping = false;
+      });
         }
       } catch (e) {
         print('Error sending message: $e');

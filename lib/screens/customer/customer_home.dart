@@ -740,13 +740,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
               subtitle: const Text('Continue conversations with salon owners'),
               onTap: () {
                 Navigator.pop(context);
-                // For now, show a message that this feature is coming soon
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Recent chats feature coming soon!'),
-                    backgroundColor: AppTheme.infoColor,
-                  ),
-                );
+                context.push('/customer-chats');
               },
             ),
             ListTile(

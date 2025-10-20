@@ -14,11 +14,13 @@ import '../../services/app_api.dart';
 class CustomerChatScreen extends ConsumerStatefulWidget {
   final String? salonId;
   final String? salonName;
+  final String? ownerId;
   
   const CustomerChatScreen({
     super.key,
     this.salonId,
     this.salonName,
+    this.ownerId,
   });
 
   @override
@@ -64,9 +66,10 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
         if (widget.salonId != null) {
           final salon = await AppApi.getSalonById(widget.salonId!);
           _salonOwnerId = salon.ownerId;
+        } else if (widget.ownerId != null && widget.ownerId!.isNotEmpty) {
+          _salonOwnerId = widget.ownerId;
         } else {
-          // Fallback to mock for demo
-          _salonOwnerId = 'owner_1';
+          _salonOwnerId = null;
         }
         
         // Get or create thread
@@ -229,9 +232,10 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
           future: widget.salonId != null ? AppApi.getSalonById(widget.salonId!) : null,
           builder: (context, snapshot) {
             final salon = snapshot.data;
-            final salonName = salon?.name ?? widget.salonName ?? 'Salon';
+            final salonName = salon?.name ?? widget.salonName;
             final salonImage = salon?.primaryImageUrl;
-            
+            final effectiveOwnerId = salon?.ownerId ?? widget.ownerId ?? _salonOwnerId;
+
             return Container(
               decoration: BoxDecoration(
                 color: AppTheme.backgroundWhite,
@@ -249,66 +253,73 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
                   child: Row(
                     children: [
                       GestureDetector(
-                        onTap: () => context.pop(),
-                        child: AppTheme.glassCard(
-                          child: const Icon(
-                            Icons.arrow_back,
-                            color: AppTheme.textPrimary,
-                          ),
-                          padding: const EdgeInsets.all(AppTheme.spacing8),
-                        ),
+                        onTap: () => Navigator.of(context).maybePop(),
+                        child: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
                       ),
                       const SizedBox(width: AppTheme.spacing12),
-                      // Salon Avatar
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: salonImage != null ? null : AppTheme.primaryGradient,
-                        ),
-                        child: salonImage != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: Image.network(
-                                  salonImage,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: AppTheme.primaryGradient,
-                                      ),
-                                      child: const Icon(
-                                        Icons.business,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              )
-                            : const Icon(
-                                Icons.business,
-                                color: Colors.white,
-                                size: 20,
+                      // Avatar with fallback to owner profile image when salon image is missing
+                      FutureBuilder<Map<String, dynamic>>(
+                        future: effectiveOwnerId != null && effectiveOwnerId.isNotEmpty
+                            ? AppApi.getOnlineStatus(effectiveOwnerId)
+                            : Future.value({'is_online': false}),
+                        builder: (context, statusSnap) {
+                          return Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage: (salonImage != null && salonImage.isNotEmpty)
+                                    ? NetworkImage(salonImage)
+                                    : null,
+                                child: (salonImage == null || salonImage.isEmpty)
+                                    ? const Icon(Icons.store, color: Colors.grey)
+                                    : null,
                               ),
+                              if ((statusSnap.data?['is_online'] as bool?) == true)
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(width: AppTheme.spacing12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              salonName,
-                              style: AppTheme.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                            FutureBuilder<Map<String, dynamic>?>(
+                              future: (salon == null && _salonOwnerId != null)
+                                  ? _loadOwnerProfile(_salonOwnerId!)
+                                  : Future.value(null),
+                              builder: (context, ownerSnap) {
+                                final fallbackName = ownerSnap.data != null
+                                    ? (ownerSnap.data!['full_name'] as String? ?? 'Salon')
+                                    : 'Salon';
+                                return Text(
+                                  salonName ?? fallbackName,
+                                  style: AppTheme.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
                             ),
                             FutureBuilder<Map<String, dynamic>>(
-                              future: widget.salonId != null 
-                                  ? AppApi.getOnlineStatus((salon?.ownerId ?? '').isNotEmpty ? salon!.ownerId : 'noop')
-                                  : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()}),
+                              future: widget.salonId != null
+                                  ? AppApi.getOnlineStatus((salon?.ownerId ?? '').isNotEmpty ? salon!.ownerId : (effectiveOwnerId ?? 'noop'))
+                                  : (effectiveOwnerId != null
+                                      ? AppApi.getOnlineStatus(effectiveOwnerId)
+                                      : Future.value({'is_online': false, 'last_seen': DateTime.now().toIso8601String()})),
                               builder: (context, statusSnapshot) {
                                 final status = statusSnapshot.data ?? {'is_online': false, 'last_seen': DateTime.now().toIso8601String()};
                                 final isOnline = status['is_online'] as bool? ?? false;
@@ -327,17 +338,10 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
                           ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          // TODO: Show salon info
-                        },
-                        child: AppTheme.glassCard(
-                          child: const Icon(
-                            Icons.info_outline,
-                            color: AppTheme.textPrimary,
-                          ),
-                          padding: const EdgeInsets.all(AppTheme.spacing8),
-                        ),
+                      const SizedBox(width: AppTheme.spacing12),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: AppTheme.textPrimary),
+                        onPressed: () {},
                       ),
                     ],
                   ),
@@ -348,6 +352,18 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
         );
       },
     );
+  }
+
+  Future<Map<String, dynamic>> _loadOwnerProfile(String ownerId) async {
+    try {
+      final user = await AppApi.getUserProfile(ownerId);
+      return {
+        'full_name': user.fullName,
+        'avatar_url': user.profileImageUrl,
+      };
+    } catch (_) {
+      return {'full_name': 'Salon', 'avatar_url': null};
+    }
   }
 
   Widget _buildMessagesList(AsyncValue<List<MessageModel>> messagesAsync) {

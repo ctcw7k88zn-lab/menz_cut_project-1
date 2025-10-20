@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/message_model.dart';
@@ -8,11 +9,13 @@ import '../services/realtime_service.dart';
 class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
   final RealtimeService _realtimeService = RealtimeService();
   final Uuid _uuid = const Uuid();
+  String? _currentThreadId;
+  String? _currentUserId;
 
   @override
   Future<List<MessageModel>> build() async {
-    // Initialize messages from local storage
-    final messages = await AppApi.getAllMessages();
+    // Initialize with empty list
+    final messages = <MessageModel>[];
     
     // Subscribe to realtime updates
     _subscribeToRealtimeUpdates();
@@ -42,13 +45,25 @@ class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
   }
 
   /// Load messages for a specific thread
-  Future<void> loadMessagesForThread(String threadId) async {
+  Future<void> loadMessagesForThread(String threadId, String userId) async {
     state = const AsyncValue.loading();
+    _currentThreadId = threadId;
+    _currentUserId = userId;
+    
     try {
       final messages = await AppApi.getMessagesByThread(threadId);
       state = AsyncValue.data(messages);
+      
+      // Mark messages as read when loading the thread
+      try {
+        await markThreadAsRead(threadId);
+      } catch (e) {
+        print('Failed to mark messages as read: $e');
+      }
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      print('Error loading messages for thread $threadId: $error');
+      // Return empty list instead of error to prevent UI crashes
+      state = AsyncValue.data([]);
     }
   }
 
@@ -112,12 +127,17 @@ class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
       
       return sentMessage;
     } catch (error, stackTrace) {
-      // Remove failed message from UI
+      print('Error sending message: $error');
+      // Update message status to failed instead of removing it
       state.whenData((messages) {
-        state = AsyncValue.data(messages.where((m) => m.id != message.id).toList());
+        final updatedMessages = messages.map((m) {
+          return m.id == message.id ? message.copyWith(status: MessageStatus.failed) : m;
+        }).toList();
+        state = AsyncValue.data(updatedMessages);
       });
-      state = AsyncValue.error(error, stackTrace);
-      return null;
+      
+      // Return the message with failed status instead of throwing
+      return message.copyWith(status: MessageStatus.failed);
     }
   }
 
@@ -158,14 +178,46 @@ class ChatNotifier extends AsyncNotifier<List<MessageModel>> {
     }
   }
 
-  /// Simulate typing indicator
+  /// Start typing indicator
   void startTyping(String threadId, String senderId) {
-    _realtimeService.simulateTyping(threadId, senderId);
+    if (_currentThreadId == threadId && _currentUserId != null) {
+      AppApi.startTyping(threadId, senderId);
+    }
   }
 
   /// Stop typing indicator
-  void stopTyping() {
-    // Implementation for stopping typing indicator
+  void stopTyping(String threadId, String senderId) {
+    AppApi.stopTyping(threadId, senderId);
+  }
+
+  /// Get typing indicators stream
+  Stream<List<Map<String, dynamic>>> getTypingIndicators(String threadId) {
+    return AppApi.getTypingIndicators(threadId);
+  }
+
+  /// Update online status
+  Future<void> updateOnlineStatus(String userId, bool isOnline) async {
+    await AppApi.updateOnlineStatus(userId, isOnline);
+  }
+
+  /// Get online status
+  Future<Map<String, dynamic>> getOnlineStatus(String userId) async {
+    return await AppApi.getOnlineStatus(userId);
+  }
+
+  /// Get unread message count
+  Future<int> getUnreadMessageCount(String userId) async {
+    return await AppApi.getUnreadMessageCount(userId);
+  }
+
+  /// Get chat threads for user
+  Future<List<Map<String, dynamic>>> getChatThreads(String userId) async {
+    return await AppApi.getChatThreads(userId);
+  }
+
+  /// Get or create thread between two users
+  Future<String> getOrCreateThread(String user1Id, String user2Id) async {
+    return await AppApi.getOrCreateThread(user1Id, user2Id);
   }
 
   /// Create a thread ID between two users
@@ -186,12 +238,12 @@ final chatProvider = AsyncNotifierProvider<ChatNotifier, List<MessageModel>>(() 
 });
 
 /// Messages by thread provider
-final messagesByThreadProvider = FutureProvider.family<List<MessageModel>, String>((ref, threadId) async {
+final messagesByThreadProvider = FutureProvider.family<List<MessageModel>, ({String threadId, String userId})>((ref, params) async {
   final chatNotifier = ref.read(chatProvider.notifier);
-  await chatNotifier.loadMessagesForThread(threadId);
+  await chatNotifier.loadMessagesForThread(params.threadId, params.userId);
   final messagesAsync = ref.read(chatProvider);
   return messagesAsync.when(
-    data: (messages) => messages.where((message) => message.threadId == threadId).toList(),
+    data: (messages) => messages.where((message) => message.threadId == params.threadId).toList(),
     loading: () => [],
     error: (_, __) => [],
   );

@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/animated_button.dart' as custom;
 import '../../models/message_model.dart';
+import '../../services/app_api.dart';
 
 class CustomerChatScreen extends ConsumerStatefulWidget {
   const CustomerChatScreen({super.key});
@@ -20,6 +23,11 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
   final _scrollController = ScrollController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  
+  String? _currentThreadId;
+  String? _salonOwnerId;
+  bool _isTyping = false;
+  bool _isOtherTyping = false;
 
   @override
   void initState() {
@@ -37,6 +45,44 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     ));
 
     _animationController.forward();
+    _initializeChat();
+  }
+
+  Future<void> _initializeChat() async {
+    try {
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // For demo, use a mock salon owner ID
+        _salonOwnerId = 'owner_1'; // This would come from salon selection
+        
+        // Get or create thread
+        _currentThreadId = await ref.read(chatProvider.notifier).getOrCreateThread(
+          authState.user!.id,
+          _salonOwnerId!,
+        );
+        
+        // Load messages for this thread
+        await ref.read(chatProvider.notifier).loadMessagesForThread(
+          _currentThreadId!,
+          authState.user!.id,
+        );
+        
+        // Update online status (optional)
+        try {
+          await ref.read(chatProvider.notifier).updateOnlineStatus(
+            authState.user!.id,
+            true,
+          );
+        } catch (e) {
+          print('Online status update failed: $e');
+        }
+      }
+    } catch (e) {
+      print('Chat initialization error: $e');
+      // Set fallback values to ensure chat still works
+      _currentThreadId = 'fallback_thread';
+      _salonOwnerId = 'fallback_owner';
+    }
   }
 
   @override
@@ -44,20 +90,77 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     _messageController.dispose();
     _scrollController.dispose();
     _animationController.dispose();
+    
+    // Update online status to offline when leaving
+    final authState = ref.read(authProvider);
+    if (authState.user != null) {
+      ref.read(chatProvider.notifier).updateOnlineStatus(authState.user!.id, false);
+    }
+    
     super.dispose();
   }
 
   void _sendMessage() {
     final message = _messageController.text.trim();
-    if (message.isNotEmpty) {
-      ref.read(chatProvider.notifier).sendMessage(
-        threadId: 'thread_1',
-        senderId: 'customer_1',
-        receiverId: 'owner_1',
-        text: message,
-      );
-      _messageController.clear();
-      _scrollToBottom();
+    if (message.isNotEmpty && _currentThreadId != null && _salonOwnerId != null) {
+      try {
+        final authState = ref.read(authProvider);
+        if (authState.user != null) {
+          // Stop typing indicator
+          _stopTyping();
+          
+          ref.read(chatProvider.notifier).sendMessage(
+            threadId: _currentThreadId!,
+            senderId: authState.user!.id,
+            receiverId: _salonOwnerId!,
+            text: message,
+          );
+          _messageController.clear();
+          _scrollToBottom();
+        }
+      } catch (e) {
+        print('Error sending message: $e');
+        // Still clear the text field and show user feedback
+        _messageController.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Message sent (offline mode)'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onTextChanged(String text) {
+    // Simplified typing indicator - just track typing state without timer
+    if (text.isNotEmpty && _currentThreadId != null && !_isTyping) {
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        _startTyping();
+      }
+    } else if (text.isEmpty && _isTyping) {
+      _stopTyping();
+    }
+  }
+
+  void _startTyping() {
+    if (!_isTyping && _currentThreadId != null) {
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        _isTyping = true;
+        ref.read(chatProvider.notifier).startTyping(_currentThreadId!, authState.user!.id);
+      }
+    }
+  }
+
+  void _stopTyping() {
+    if (_isTyping && _currentThreadId != null) {
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        _isTyping = false;
+        ref.read(chatProvider.notifier).stopTyping(_currentThreadId!, authState.user!.id);
+      }
     }
   }
 
@@ -263,10 +366,15 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(AppTheme.spacing16),
-      itemCount: messages.length,
+      itemCount: messages.length + (_isOtherTyping ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == messages.length && _isOtherTyping) {
+          return _buildTypingIndicator();
+        }
+        
         final message = messages[index];
-        final isMe = message.senderId == 'customer_1'; // Mock customer ID
+        final authState = ref.read(authProvider);
+        final isMe = authState.user != null && message.senderId == authState.user!.id;
         
         return Padding(
           padding: const EdgeInsets.only(bottom: AppTheme.spacing12),
@@ -278,6 +386,55 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
         );
       },
     );
+      },
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.spacing12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacing16,
+              vertical: AppTheme.spacing12,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(20).copyWith(
+                bottomLeft: const Radius.circular(4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTypingDot(0),
+                const SizedBox(width: 4),
+                _buildTypingDot(1),
+                const SizedBox(width: 4),
+                _buildTypingDot(2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      builder: (context, value, child) {
+        return Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: Colors.grey[600]!.withOpacity(0.3 + (0.7 * value)),
+            shape: BoxShape.circle,
+          ),
+        );
       },
     );
   }
@@ -331,6 +488,7 @@ class _CustomerChatScreenState extends ConsumerState<CustomerChatScreen>
                     ),
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
+                    onChanged: _onTextChanged,
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),

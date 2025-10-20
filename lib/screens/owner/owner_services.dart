@@ -486,6 +486,15 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         buttons = [
           Expanded(
             child: _buildActionButton(
+              'Chat',
+              Icons.chat_bubble_outline,
+              AppTheme.primaryMauve,
+              () => _chatWithCustomer(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionButton(
               'Approve',
               Icons.check,
               Colors.green,
@@ -514,6 +523,15 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         break;
       case AppointmentStatus.confirmed:
         buttons = [
+          Expanded(
+            child: _buildActionButton(
+              'Chat',
+              Icons.chat_bubble_outline,
+              AppTheme.primaryMauve,
+              () => _chatWithCustomer(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildActionButton(
               'Complete',
@@ -546,6 +564,15 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         buttons = [
           Expanded(
             child: _buildActionButton(
+              'Chat',
+              Icons.chat_bubble_outline,
+              AppTheme.primaryMauve,
+              () => _chatWithCustomer(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionButton(
               'View Details',
               Icons.visibility,
               Colors.blue,
@@ -558,6 +585,15 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         buttons = [
           Expanded(
             child: _buildActionButton(
+              'Chat',
+              Icons.chat_bubble_outline,
+              AppTheme.primaryMauve,
+              () => _chatWithCustomer(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionButton(
               'View Details',
               Icons.visibility,
               Colors.blue,
@@ -568,6 +604,15 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
         break;
       default:
         buttons = [
+          Expanded(
+            child: _buildActionButton(
+              'Chat',
+              Icons.chat_bubble_outline,
+              AppTheme.primaryMauve,
+              () => _chatWithCustomer(appointment),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildActionButton(
               'View Details',
@@ -879,6 +924,50 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to delete appointment: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _chatWithCustomer(AppointmentModel appointment) async {
+    try {
+      final authState = ref.read(authProvider);
+      final ownerId = authState.user?.id;
+      if (ownerId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Not logged in'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Ensure we have a valid customer id
+      final customerId = appointment.customerId;
+      if (customerId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Customer not found for this appointment'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      await AppApi.getOrCreateThread(ownerId, customerId);
+
+      // Navigate to owner chat screen with customer information
+      context.push('/owner-chat', extra: {
+        'customerId': customerId,
+        'customerName': appointment.customerDetails?['name'] ?? 'Customer',
+        'customerImage': appointment.customerDetails?['imageUrl'],
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to start chat: $e'),
           backgroundColor: Colors.red,
         ),
       );

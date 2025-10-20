@@ -30,7 +30,9 @@ class RealtimeService {
     if (AppEnv.enableMock) {
       return _servicesController.stream;
     } else {
-      return SupabaseService.servicesStream.map((services) => services.first);
+      return SupabaseService.servicesStream
+          .where((services) => services.isNotEmpty)
+          .map((services) => services.first);
     }
   }
 
@@ -38,7 +40,9 @@ class RealtimeService {
     if (AppEnv.enableMock) {
       return _appointmentsController.stream;
     } else {
-      return SupabaseService.appointmentsStream.map((appointments) => appointments.first);
+      return SupabaseService.appointmentsStream
+          .where((appointments) => appointments.isNotEmpty)
+          .map((appointments) => appointments.first);
     }
   }
 
@@ -46,7 +50,9 @@ class RealtimeService {
     if (AppEnv.enableMock) {
       return _messagesController.stream;
     } else {
-      return SupabaseService.messagesStream.map((messages) => messages.first);
+      return SupabaseService.messagesStream
+          .where((messages) => messages.isNotEmpty)
+          .map((messages) => messages.first);
     }
   }
 

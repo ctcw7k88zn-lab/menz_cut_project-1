@@ -3,9 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_theme.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/app_api.dart';
+import '../../models/user_model.dart';
+import '../../models/message_model.dart';
 
 class OwnerChatScreen extends ConsumerStatefulWidget {
-  const OwnerChatScreen({super.key});
+  final String? customerId;
+  final String? customerName;
+  final String? customerImage;
+  
+  const OwnerChatScreen({
+    super.key,
+    this.customerId,
+    this.customerName,
+    this.customerImage,
+  });
 
   @override
   ConsumerState<OwnerChatScreen> createState() => _OwnerChatScreenState();
@@ -128,6 +141,13 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
     super.initState();
     _initializeAnimations();
     _loadData();
+    
+    // If customer information is provided, automatically start chat with that customer
+    if (widget.customerId != null && widget.customerName != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startChatWithSpecificCustomer();
+      });
+    }
   }
 
   void _initializeAnimations() {
@@ -523,22 +543,35 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   }
 
   Widget _buildMessagesList() {
-    return ListView.builder(
+    return Consumer(
+      builder: (context, ref, child) {
+        final chatState = ref.watch(chatProvider);
+        
+        return chatState.when(
+          data: (messages) => ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: _messages.length + (_isTyping ? 1 : 0),
+            itemCount: messages.length + (_isTyping ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _messages.length && _isTyping) {
+              if (index == messages.length && _isTyping) {
           return _buildTypingIndicator();
         }
-        final message = _messages[index];
+              final message = messages[index];
         return _buildMessageBubble(message);
+            },
+          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => Center(
+            child: Text('Error loading messages: $error'),
+          ),
+        );
       },
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isFromCustomer = message['isFromCustomer'] as bool;
+  Widget _buildMessageBubble(MessageModel message) {
+    final authState = ref.read(authProvider);
+    final isFromCustomer = message.senderId != authState.user?.id;
     
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -573,18 +606,19 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    message['content'],
+                    message.text,
                     style: TextStyle(
                       color: isFromCustomer ? Colors.black87 : Colors.white,
-                      fontSize: 14,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _formatTime(message['timestamp']),
+                    _formatTime(message.createdAt),
                     style: TextStyle(
-                      color: isFromCustomer ? Colors.grey.shade600 : Colors.white70,
-                      fontSize: 10,
+                      color: isFromCustomer ? Colors.grey[600] : Colors.white70,
+                      fontSize: 12,
                     ),
               ),
             ],
@@ -733,10 +767,106 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   }
 
   void _startNewChat() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => StartNewChatModal(
+        onCustomerSelected: (customer) {
+          Navigator.pop(context);
+          _startChatWithCustomer(customer);
+        },
+      ),
+    );
+  }
+
+  void _startChatWithSpecificCustomer() async {
+    try {
+      // Get real customer data from the database
+      final customerProfile = await AppApi.getUserProfile(widget.customerId!);
+      
+      // Create a new chat entry for the specific customer with real data
+      final newChat = {
+        'id': 'chat_${widget.customerId}_${DateTime.now().millisecondsSinceEpoch}',
+        'customerId': widget.customerId,
+        'customerName': customerProfile.fullName,
+        'customerEmail': customerProfile.email,
+        'customerImage': customerProfile.profileImageUrl ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+        'lastMessage': 'Chat started',
+        'lastMessageTime': 'now',
+        'unreadCount': 0,
+        'isOnline': true,
+      };
+      
+      setState(() {
+        _chatList.insert(0, newChat);
+        _selectedChatId = newChat['id'] as String;
+      });
+      
+      // Initialize real chat with the customer
+      await _initializeRealChat(widget.customerId!);
+    } catch (e) {
+      print('Error starting chat with specific customer: $e');
+      // Fallback to using provided data
+      final newChat = {
+        'id': 'chat_${widget.customerId}_${DateTime.now().millisecondsSinceEpoch}',
+        'customerId': widget.customerId,
+        'customerName': widget.customerName ?? 'Customer',
+        'customerEmail': '',
+        'customerImage': widget.customerImage ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+        'lastMessage': 'Chat started',
+        'lastMessageTime': 'now',
+        'unreadCount': 0,
+        'isOnline': true,
+      };
+      
+      setState(() {
+        _chatList.insert(0, newChat);
+        _selectedChatId = newChat['id'] as String;
+      });
+    }
+  }
+  
+  Future<void> _initializeRealChat(String customerId) async {
+    try {
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // Get or create thread with the customer
+        final threadId = await AppApi.getOrCreateThread(authState.user!.id, customerId);
+        
+        // Load messages for this thread
+        await ref.read(chatProvider.notifier).loadMessagesForThread(threadId, authState.user!.id);
+        
+        print('Real chat initialized with thread: $threadId');
+      }
+    } catch (e) {
+      print('Error initializing real chat: $e');
+    }
+  }
+
+  void _startChatWithCustomer(Map<String, dynamic> customer) {
+    // Create a new chat entry
+    final newChat = {
+      'id': 'chat_${customer['id']}_${DateTime.now().millisecondsSinceEpoch}',
+      'customerId': customer['id'],
+      'customerName': customer['name'],
+      'customerEmail': customer['email'],
+      'customerImage': customer['avatar_url'] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+      'lastMessage': 'Chat started',
+      'lastMessageTime': 'now',
+      'unreadCount': 0,
+      'isOnline': true,
+    };
+    
+    setState(() {
+      _chatList.insert(0, newChat);
+      _selectedChatId = newChat['id'] as String;
+    });
+    
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Start new chat feature coming soon!'),
-        backgroundColor: AppTheme.primaryMauve,
+      SnackBar(
+        content: Text('Started chat with ${customer['name']}'),
+        backgroundColor: AppTheme.successColor,
       ),
     );
   }
@@ -888,15 +1018,43 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final message = _messageController.text.trim();
     if (message.isNotEmpty) {
-      ref.read(chatProvider.notifier).sendMessage(
-        threadId: 'thread_1',
-        senderId: 'owner_1',
-        receiverId: 'customer_1',
+      try {
+        final authState = ref.read(authProvider);
+        if (authState.user != null && _selectedChatId != null) {
+          // Get the selected chat to find customer ID
+          final selectedChat = _chatList.firstWhere((chat) => chat['id'] == _selectedChatId);
+          final customerId = selectedChat['customerId'];
+          
+          // Get or create thread
+          final threadId = await AppApi.getOrCreateThread(authState.user!.id, customerId);
+          
+          // Send real message
+          await ref.read(chatProvider.notifier).sendMessage(
+            threadId: threadId,
+            senderId: authState.user!.id,
+            receiverId: customerId,
         text: message,
       );
+          
+          // Update local chat list
+          setState(() {
+            selectedChat['lastMessage'] = message;
+            selectedChat['lastMessageTime'] = 'now';
+          });
+        }
+      } catch (e) {
+        print('Error sending message: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send message: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      
       _messageController.clear();
       setState(() {
         _isTyping = false;
@@ -909,12 +1067,218 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
       );
     }
   }
+}
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature feature coming soon!'),
-        backgroundColor: AppTheme.primaryMauve,
+class StartNewChatModal extends ConsumerStatefulWidget {
+  final Function(Map<String, dynamic>) onCustomerSelected;
+
+  const StartNewChatModal({
+    super.key,
+    required this.onCustomerSelected,
+  });
+
+  @override
+  ConsumerState<StartNewChatModal> createState() => _StartNewChatModalState();
+}
+
+class _StartNewChatModalState extends ConsumerState<StartNewChatModal> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _customers = [];
+  List<Map<String, dynamic>> _filteredCustomers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Get customers who have booked appointments with this salon
+      final authState = ref.read(authProvider);
+      if (authState.user != null) {
+        // Get salon ID for this owner
+        final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
+        if (salon != null) {
+          // Get appointments for this salon to find customers
+          final appointments = await AppApi.getAppointmentsBySalon(salon.id);
+          
+          // Extract unique customers from appointments
+          final customerIds = appointments.map((apt) => apt.customerId).toSet();
+          
+          // Get customer profiles
+          final customers = <Map<String, dynamic>>[];
+          for (final customerId in customerIds) {
+            try {
+              final profile = await AppApi.getUserProfile(customerId);
+              if (profile.role == UserRole.customer) {
+                customers.add({
+                  'id': customerId,
+                  'name': profile.fullName,
+                  'email': profile.email,
+                  'phone': profile.phone,
+                  'avatar_url': profile.profileImageUrl,
+                  'lastAppointment': _getLastAppointmentDate(appointments, customerId),
+                });
+              }
+            } catch (e) {
+              print('Error loading customer $customerId: $e');
+            }
+          }
+          
+          setState(() {
+            _customers = customers;
+            _filteredCustomers = customers;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading customers: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _getLastAppointmentDate(List appointments, String customerId) {
+    final customerAppointments = appointments
+        .where((apt) => apt.customerId == customerId)
+        .toList();
+    
+    if (customerAppointments.isEmpty) return 'No appointments';
+    
+    customerAppointments.sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));
+    final lastAppointment = customerAppointments.first.appointmentDate;
+    
+    final now = DateTime.now();
+    final difference = now.difference(lastAppointment);
+    
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()} weeks ago';
+    } else {
+      return '${(difference.inDays / 30).floor()} months ago';
+    }
+  }
+
+  void _filterCustomers(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCustomers = _customers;
+      } else {
+        _filteredCustomers = _customers.where((customer) {
+          final name = customer['name'].toString().toLowerCase();
+          final email = customer['email'].toString().toLowerCase();
+          final searchQuery = query.toLowerCase();
+          return name.contains(searchQuery) || email.contains(searchQuery);
+        }).toList();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Start New Chat',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search customers by name or email...',
+              prefixIcon: const Icon(Icons.search, color: AppTheme.primaryMauve),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.primaryMauve),
+              ),
+            ),
+            onChanged: _filterCustomers,
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredCustomers.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No customers found',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 16,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredCustomers.length,
+                        itemBuilder: (context, index) {
+                          final customer = _filteredCustomers[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppTheme.primaryMauve.withOpacity(0.1),
+                              backgroundImage: customer['avatar_url'] != null
+                                  ? NetworkImage(customer['avatar_url'])
+                                  : null,
+                              child: customer['avatar_url'] == null
+                                  ? Text(
+                                      customer['name'][0].toUpperCase(),
+                                      style: const TextStyle(
+                                        color: AppTheme.primaryMauve,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(customer['name']),
+                            subtitle: Text(
+                              '${customer['email']} • Last visit: ${customer['lastAppointment']}',
+                            ),
+                            trailing: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryMauve),
+                            onTap: () => widget.onCustomerSelected(customer),
+                          );
+                        },
+                      ),
+          ),
+        ],
       ),
     );
   }

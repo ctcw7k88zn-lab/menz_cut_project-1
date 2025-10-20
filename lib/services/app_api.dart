@@ -572,6 +572,181 @@ class AppApi {
     }
   }
 
+  // Enhanced chat functionality
+  static Future<String> getOrCreateThread(String user1Id, String user2Id) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Create a mock thread ID for local mode
+      final sortedIds = [user1Id, user2Id]..sort();
+      return 'thread_${sortedIds[0]}_${sortedIds[1]}';
+    } else {
+      return SupabaseService.getOrCreateThread(user1Id, user2Id);
+    }
+  }
+
+  static Future<void> updateOnlineStatus(String userId, bool isOnline) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Mock online status update
+      print('📡 Mock: User $userId is ${isOnline ? 'online' : 'offline'}');
+    } else {
+      await SupabaseService.updateOnlineStatus(userId, isOnline);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getOnlineStatus(String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      return {
+        'is_online': true,
+        'last_seen': DateTime.now().toIso8601String(),
+        'status_message': 'Online',
+      };
+    } else {
+      return SupabaseService.getOnlineStatus(userId);
+    }
+  }
+
+  static Future<void> startTyping(String threadId, String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      print('⌨️ Mock: User $userId started typing in thread $threadId');
+    } else {
+      await SupabaseService.startTyping(threadId, userId);
+    }
+  }
+
+  static Future<void> stopTyping(String threadId, String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      print('⌨️ Mock: User $userId stopped typing in thread $threadId');
+    } else {
+      await SupabaseService.stopTyping(threadId, userId);
+    }
+  }
+
+  static Stream<List<Map<String, dynamic>>> getTypingIndicators(String threadId) {
+    if (useLocal) {
+      // Return empty stream for local mode
+      return Stream.value([]);
+    } else {
+      return SupabaseService.getTypingIndicators(threadId);
+    }
+  }
+
+  static Future<void> markMessagesAsRead(String threadId, String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Mock marking messages as read
+      print('✅ Mock: Marked messages as read for thread $threadId, user $userId');
+    } else {
+      await SupabaseService.markMessagesAsRead(threadId, userId);
+    }
+  }
+
+  static Future<int> getUnreadMessageCount(String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Return mock unread count
+      return 0;
+    } else {
+      return SupabaseService.getUnreadMessageCount(userId);
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getChatThreads(String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Return mock chat threads
+      return [
+        {
+          'id': 'thread_1',
+          'thread_id': 'thread_1',
+          'participant_1': {'id': 'customer_1', 'full_name': 'John Doe', 'avatar_url': null},
+          'participant_2': {'id': 'owner_1', 'full_name': 'Salon Owner', 'avatar_url': null},
+          'last_message': {'text': 'Thank you for the great service!', 'created_at': DateTime.now().toIso8601String()},
+          'last_message_at': DateTime.now().toIso8601String(),
+        }
+      ];
+    } else {
+      return SupabaseService.getChatThreads(userId);
+    }
+  }
+
+  // Add missing methods for chat functionality
+  static Future<SalonModel?> getSalonByOwner(String ownerId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Return mock salon for local mode
+      return SalonModel(
+        id: 'mock_salon_1',
+        ownerId: ownerId,
+        name: 'Mock Salon',
+        description: 'A mock salon for testing',
+        address: '123 Mock Street',
+        phone: '123-456-7890',
+        email: 'mock@salon.com',
+        imageUrls: [],
+        rating: 4.5,
+        reviewCount: 10,
+        categories: ['Haircut'],
+        openingHours: {'Monday': '9:00-18:00'},
+        latitude: 0.0,
+        longitude: 0.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      return SupabaseService.getSalonByOwnerId(ownerId);
+    }
+  }
+
+  static Future<UserModel> getUserProfile(String userId) async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Return mock user profile
+      return UserModel(
+        id: userId,
+        email: 'mock@user.com',
+        fullName: 'Mock User',
+        phone: '123-456-7890',
+        role: UserRole.customer,
+        profileImageUrl: null,
+        isEmailVerified: true,
+        isPhoneVerified: false,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      return SupabaseService.getCurrentUser();
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getCustomers() async {
+    if (useLocal) {
+      await _simulateNetworkDelay();
+      // Return mock customers for local mode
+      return [
+        {
+          'id': 'customer_1',
+          'name': 'John Doe',
+          'email': 'john@example.com',
+          'avatar_url': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+          'last_visit': '2024-01-15',
+        },
+        {
+          'id': 'customer_2',
+          'name': 'Jane Smith',
+          'email': 'jane@example.com',
+          'avatar_url': 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100',
+          'last_visit': '2024-01-14',
+        },
+      ];
+    } else {
+      return SupabaseService.getCustomers();
+    }
+  }
+
   static Future<void> markMessageAsRead(String messageId) async {
     if (useLocal) {
       await _simulateNetworkDelay();

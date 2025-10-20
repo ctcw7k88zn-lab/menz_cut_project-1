@@ -20,6 +20,7 @@ import 'screens/customer/customer_map.dart';
 import 'screens/customer/customer_salon_list.dart';
 import 'screens/customer/ai_hair_suggestions.dart';
 import 'screens/owner/owner_dashboard.dart';
+import 'screens/owner/owner_chat.dart';
 import 'screens/owner/owner_profile.dart';
 import 'screens/owner/owner_reviews.dart';
 import 'screens/auth/forgot_password_screen.dart';
@@ -167,7 +168,14 @@ class _SalonAppState extends ConsumerState<SalonApp> {
         ),
         GoRoute(
           path: '/owner-chat',
-          builder: (context, state) => const OwnerDashboardScreen(),
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return OwnerChatScreen(
+              customerId: extra?['customerId'] as String?,
+              customerName: extra?['customerName'] as String?,
+              customerImage: extra?['customerImage'] as String?,
+            );
+          },
         ),
         GoRoute(
           path: '/owner-profile',

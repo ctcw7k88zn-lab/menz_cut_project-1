@@ -175,7 +175,38 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
   void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatThreadsProvider.notifier).loadChatThreads();
+      // Also refresh messages if we're in a chat
+      if (_selectedChatId != null) {
+        _refreshMessages();
+      }
     });
+  }
+
+  /// Refresh messages for the current chat
+  Future<void> _refreshMessages() async {
+    try {
+      final authState = ref.read(authProvider);
+      if (authState.user != null && _selectedChatId != null) {
+        // Get the thread ID from the selected chat
+        final threadsState = ref.read(chatThreadsProvider);
+        threadsState.whenData((threads) {
+          final selectedThread = threads.firstWhere(
+            (t) => (t['id'] ?? t['thread_id']) == _selectedChatId,
+            orElse: () => <String, dynamic>{},
+          );
+          
+          if (selectedThread.isNotEmpty) {
+            final threadId = selectedThread['thread_id'] ?? selectedThread['id'];
+            if (threadId != null) {
+              // Load fresh messages for this thread
+              ref.read(chatProvider.notifier).loadMessagesForThread(threadId, authState.user!.id);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error refreshing messages: $e');
+    }
   }
 
   @override
@@ -455,11 +486,17 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
                       ],
                     ),
             ),
-          ],
-        );
-      },
-    );
-  }
+          const SizedBox(width: 12),
+          IconButton(
+            onPressed: _refreshMessages,
+            icon: const Icon(Icons.refresh, color: AppTheme.primaryMauve),
+            tooltip: 'Refresh messages',
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Widget _buildChatListItem(Map<String, dynamic> thread) {
     // Extract participant information (assuming the current user is the salon owner)
@@ -479,7 +516,11 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: GestureDetector(
-        onTap: () => setState(() => _selectedChatId = (thread['id'] ?? thread['thread_id']) as String?),
+        onTap: () {
+          setState(() => _selectedChatId = (thread['id'] ?? thread['thread_id']) as String?);
+          // Refresh messages when selecting a chat
+          _refreshMessages();
+        },
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -613,21 +654,34 @@ class _OwnerChatScreenState extends ConsumerState<OwnerChatScreen>
         final chatState = ref.watch(chatProvider);
         
         return chatState.when(
-          data: (messages) => ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-            itemCount: messages.length + (_isOtherTyping ? 1 : 0),
-      itemBuilder: (context, index) {
-              if (index == messages.length && _isOtherTyping) {
-          return _buildTypingIndicator();
-        }
-              final message = messages[index];
-        return _buildMessageBubble(message);
-            },
+          data: (messages) => RefreshIndicator(
+            onRefresh: _refreshMessages,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              itemCount: messages.length + (_isOtherTyping ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == messages.length && _isOtherTyping) {
+                  return _buildTypingIndicator();
+                }
+                final message = messages[index];
+                return _buildMessageBubble(message);
+              },
+            ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stack) => Center(
-            child: Text('Error loading messages: $error'),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Error loading messages: $error'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _refreshMessages,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         );
       },

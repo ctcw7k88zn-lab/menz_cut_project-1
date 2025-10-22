@@ -180,7 +180,7 @@ class _SalonAppState extends ConsumerState<SalonApp> {
         ),
         GoRoute(
           path: '/owner-appointments',
-          builder: (context, state) => const OwnerDashboardScreen(),
+          builder: (context, state) => const OwnerDashboardScreen(initialIndex: 2),
         ),
         GoRoute(
           path: '/owner-chat',

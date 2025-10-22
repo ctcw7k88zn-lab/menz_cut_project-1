@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/app_theme.dart';
 import '../../providers/appointments_provider.dart';
+import '../../providers/analytics_provider.dart';
 import '../../models/appointment_model.dart';
 
 class OwnerAnalyticsScreen extends ConsumerStatefulWidget {
@@ -53,7 +54,7 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
 
   void _loadData() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(appointmentsProvider.notifier).loadAppointments();
+      ref.read(analyticsProvider.notifier).loadAnalytics();
     });
   }
 
@@ -66,12 +67,16 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final appointmentsState = ref.watch(appointmentsProvider);
-    final appointments = appointmentsState.when(
-      data: (data) => data,
-      loading: () => <AppointmentModel>[],
-      error: (_, __) => <AppointmentModel>[],
+    final analyticsState = ref.watch(analyticsProvider);
+    
+    return analyticsState.when(
+      data: (analyticsData) => _buildAnalyticsContent(analyticsData),
+      loading: () => _buildLoadingState(),
+      error: (error, stackTrace) => _buildErrorState(error),
     );
+  }
+
+  Widget _buildAnalyticsContent(analyticsData) {
 
     return Scaffold(
       body: Container(
@@ -89,15 +94,15 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
               position: _slideAnimation,
         child: CustomScrollView(
           slivers: [
-                  _buildAppBar(),
-                  _buildFilterSection(),
-                  _buildStatsCards(),
-                  _buildTabSection(),
-                  _buildTabContent(appointments),
-                  _buildBestSellingServices(),
-                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                        ],
-                      ),
+            _buildAppBar(),
+            _buildFilterSection(),
+            _buildStatsCards(analyticsData),
+            _buildTabSection(),
+            _buildTabContent(analyticsData),
+            _buildBestSellingServices(analyticsData),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          ],
+        ),
                     ),
                   ),
                 ),
@@ -211,13 +216,13 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
     );
   }
 
-  Widget _buildStatsCards() {
+  Widget _buildStatsCards(analyticsData) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+          children: [
             const Text(
               'Today\'s Summary',
               style: TextStyle(
@@ -228,18 +233,38 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
             ),
             const SizedBox(height: 16),
             Row(
-                children: [
-                Expanded(child: _buildStatCard('Today\'s Revenue', '\$245', Icons.attach_money, Colors.green)),
+              children: [
+                Expanded(child: _buildStatCard(
+                  'Today\'s Revenue', 
+                  '\$${analyticsData.todayRevenue.toStringAsFixed(0)}', 
+                  Icons.attach_money, 
+                  Colors.green
+                )),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('Total Bookings', '47', Icons.calendar_today, Colors.blue)),
+                Expanded(child: _buildStatCard(
+                  'Total Bookings', 
+                  '${analyticsData.totalBookings}', 
+                  Icons.calendar_today, 
+                  Colors.blue
+                )),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _buildStatCard('Cancellations', '3', Icons.cancel, Colors.red)),
+                Expanded(child: _buildStatCard(
+                  'Cancellations', 
+                  '${analyticsData.cancellations}', 
+                  Icons.cancel, 
+                  Colors.red
+                )),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('Customer Growth', '+12%', Icons.trending_up, Colors.purple)),
+                Expanded(child: _buildStatCard(
+                  'Customer Growth', 
+                  '${analyticsData.customerGrowth >= 0 ? '+' : ''}${analyticsData.customerGrowth.toStringAsFixed(1)}%', 
+                  Icons.trending_up, 
+                  analyticsData.customerGrowth >= 0 ? Colors.green : Colors.red
+                )),
               ],
             ),
           ],
@@ -330,119 +355,43 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
     );
   }
 
-  Widget _buildTabContent(List<AppointmentModel> appointments) {
+  Widget _buildTabContent(analyticsData) {
     List<AppointmentModel> filteredAppointments = [];
     
     switch (_selectedTabIndex) {
       case 0:
-        filteredAppointments = appointments.where((apt) => 
-          apt.status == AppointmentStatus.pending || apt.status == AppointmentStatus.confirmed).toList();
+        filteredAppointments = analyticsData.upcomingAppointments;
         break;
       case 1:
-        filteredAppointments = appointments.where((apt) => 
-          apt.status == AppointmentStatus.completed).toList();
+        filteredAppointments = analyticsData.completedAppointments;
         break;
       case 2:
-        filteredAppointments = appointments.where((apt) => 
-          apt.status == AppointmentStatus.cancelled).toList();
+        filteredAppointments = analyticsData.cancelledAppointments;
         break;
     }
 
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-            if (_selectedTabIndex == 0) _buildRevenueChart(),
-            if (_selectedTabIndex == 1) _buildServicePieChart(),
-            if (_selectedTabIndex == 2) _buildCancellationChart(),
+        child: Column(
+          children: [
+            if (_selectedTabIndex == 0) _buildRevenueChart(analyticsData),
+            if (_selectedTabIndex == 1) _buildServicePieChart(analyticsData),
+            if (_selectedTabIndex == 2) _buildCancellationChart(analyticsData),
             const SizedBox(height: 20),
-            ...filteredAppointments.map((appointment) => _buildAppointmentCard(appointment)),
+            ...filteredAppointments.map<Widget>((appointment) => _buildAppointmentCard(appointment)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRevenueChart() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-            'Monthly Revenue',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 20),
-                SizedBox(
-                  height: 200,
-                  child: BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                maxY: 20,
-                      barTouchData: BarTouchData(enabled: false),
-                      titlesData: FlTitlesData(
-                        show: true,
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-                              return Text(
-                          months[value.toInt() % 6],
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              );
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              return Text(
-                          '\$${value.toInt()}00',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      borderData: FlBorderData(show: false),
-                barGroups: [
-                  BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: 8, color: AppTheme.primaryMauve)]),
-                  BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: 12, color: AppTheme.primaryMauve)]),
-                  BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: 15, color: AppTheme.primaryMauve)]),
-                  BarChartGroupData(x: 3, barRods: [BarChartRodData(toY: 18, color: AppTheme.primaryMauve)]),
-                  BarChartGroupData(x: 4, barRods: [BarChartRodData(toY: 16, color: AppTheme.primaryMauve)]),
-                  BarChartGroupData(x: 5, barRods: [BarChartRodData(toY: 20, color: AppTheme.primaryMauve)]),
-                ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
+  Widget _buildRevenueChart(analyticsData) {
+    final monthlyData = analyticsData.monthlyRevenue;
+    final maxRevenue = monthlyData.isNotEmpty 
+        ? monthlyData.map((e) => e['revenue'] as double).reduce((a, b) => a > b ? a : b)
+        : 1000.0;
 
-  Widget _buildServicePieChart() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -456,10 +405,105 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
           ),
         ],
       ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Monthly Revenue',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxRevenue > 0 ? maxRevenue * 1.2 : 1000,
+                barTouchData: BarTouchData(enabled: false),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() < monthlyData.length) {
+                          return Text(
+                            monthlyData[value.toInt()]['month'],
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          '\$${value.toInt()}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: monthlyData.asMap().entries.map<BarChartGroupData>((entry) {
+                  final index = entry.key;
+                  final data = entry.value;
+                  return BarChartGroupData(
+                    x: index,
+                    barRods: [
+                      BarChartRodData(
+                        toY: data['revenue'] as double,
+                        color: AppTheme.primaryMauve,
+                      )
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServicePieChart(analyticsData) {
+    final serviceData = analyticsData.serviceDistribution;
+    final colors = [
+      AppTheme.primaryMauve,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
             'Service Distribution',
             style: TextStyle(
               fontSize: 18,
@@ -468,55 +512,43 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
             ),
           ),
           const SizedBox(height: 20),
-                SizedBox(
-                  height: 200,
-                  child: PieChart(
-                    PieChartData(
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
                 pieTouchData: PieTouchData(enabled: false),
-                      sectionsSpace: 2,
-                      centerSpaceRadius: 40,
-                sections: [
-                  PieChartSectionData(
-                    color: AppTheme.primaryMauve,
-                    value: 40,
-                    title: '40%',
-                          radius: 50,
-                    titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    color: Colors.blue,
-                    value: 30,
-                    title: '30%',
+                sectionsSpace: 2,
+                centerSpaceRadius: 40,
+                sections: serviceData.asMap().entries.map<PieChartSectionData>((entry) {
+                  final index = entry.key;
+                  final data = entry.value;
+                  return PieChartSectionData(
+                    color: colors[index % colors.length],
+                    value: data['percentage'] as double,
+                    title: '${(data['percentage'] as double).toStringAsFixed(0)}%',
                     radius: 50,
-                    titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    color: Colors.green,
-                    value: 20,
-                    title: '20%',
-                    radius: 50,
-                    titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    color: Colors.orange,
-                    value: 10,
-                    title: '10%',
-                    radius: 50,
-                    titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ],
+                    titleStyle: const TextStyle(
+                      fontSize: 12, 
+                      fontWeight: FontWeight.bold, 
+                      color: Colors.white
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
-          ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-              _buildLegendItem('Haircut', AppTheme.primaryMauve),
-              _buildLegendItem('Beard', Colors.blue),
-              _buildLegendItem('Facial', Colors.green),
-              _buildLegendItem('Other', Colors.orange),
-            ],
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: serviceData.asMap().entries.map<Widget>((entry) {
+              final index = entry.key;
+              final data = entry.value;
+              return _buildLegendItem(
+                data['name'] as String, 
+                colors[index % colors.length]
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -538,7 +570,7 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
     );
   }
 
-  Widget _buildCancellationChart() {
+  Widget _buildCancellationChart(analyticsData) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -552,10 +584,10 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
           ),
         ],
       ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
             'Cancellation Trends',
             style: TextStyle(
               fontSize: 18,
@@ -564,31 +596,31 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
             ),
           ),
           const SizedBox(height: 20),
-                SizedBox(
-                  height: 200,
-                  child: LineChart(
-                    LineChartData(
-                      gridData: FlGridData(show: false),
-                      titlesData: FlTitlesData(
+          SizedBox(
+            height: 200,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
                         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                              return Text(
+                        return Text(
                           days[value.toInt() % 7],
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      borderData: FlBorderData(show: false),
-                      lineBarsData: [
-                        LineChartBarData(
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
                     spots: [
                       const FlSpot(0, 1),
                       const FlSpot(1, 2),
@@ -598,21 +630,21 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
                       const FlSpot(5, 1),
                       const FlSpot(6, 0),
                     ],
-                          isCurved: true,
+                    isCurved: true,
                     color: Colors.red,
-                          barWidth: 3,
+                    barWidth: 3,
                     dotData: FlDotData(show: false),
-                          belowBarData: BarAreaData(
-                            show: true,
+                    belowBarData: BarAreaData(
+                      show: true,
                       color: Colors.red.withOpacity(0.1),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -754,9 +786,12 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
   }
 
   void _downloadReport() {
+    // Refresh analytics data
+    ref.read(analyticsProvider.notifier).refresh();
+    
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Report download feature coming soon!'),
+        content: Text('Analytics data refreshed!'),
         backgroundColor: AppTheme.primaryMauve,
       ),
     );
@@ -838,27 +873,8 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
     }
   }
 
-  Widget _buildBestSellingServices() {
-    final bestSellingServices = [
-      {
-        'name': 'Classic Haircut',
-        'earnings': 1250.0,
-        'bookings': 50,
-        'image': 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400',
-      },
-      {
-        'name': 'Beard Trim',
-        'earnings': 750.0,
-        'bookings': 30,
-        'image': 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400',
-      },
-      {
-        'name': 'Hair Wash & Style',
-        'earnings': 1050.0,
-        'bookings': 30,
-        'image': 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=400',
-      },
-    ];
+  Widget _buildBestSellingServices(analyticsData) {
+    final topServices = analyticsData.topServices.take(3).toList();
 
     return SliverToBoxAdapter(
       child: Container(
@@ -875,13 +891,10 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
               ),
             ),
             const SizedBox(height: 16),
-            ...bestSellingServices.asMap().entries.map((entry) {
-              final index = entry.key;
-              final service = entry.value;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+            if (topServices.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
@@ -891,99 +904,211 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
                       offset: const Offset(0, 2),
                     ),
                   ],
-      ),
-      child: Row(
-        children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: NetworkImage(service['image'] as String),
-                          fit: BoxFit.cover,
+                ),
+                child: const Center(
+                  child: Text(
+                    'No completed appointments yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...topServices.asMap().entries.map<Widget>((entry) {
+                final index = entry.key;
+                final service = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryMauve.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.content_cut,
+                          color: AppTheme.primaryMauve,
+                          size: 24,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-          Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryMauve,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-            child: Text(
-                                    '${index + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryMauve,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                service['name'] as String,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
-                          const SizedBox(height: 8),
-                          Row(
-        children: [
-                              Icon(Icons.attach_money, size: 16, color: Colors.green.shade600),
-                              const SizedBox(width: 4),
-          Text(
-                                '\$${(service['earnings'] as double).toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.green.shade600,
+                                const SizedBox(width: 8),
+                                Text(
+                                  service['name'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.textPrimary,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Icon(Icons.calendar_today, size: 16, color: Colors.blue.shade600),
-                              const SizedBox(width: 4),
-          Text(
-                                '${service['bookings']} bookings',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue.shade600,
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.attach_money, size: 16, color: Colors.green.shade600),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '\$${(service['revenue'] as double).toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green.shade600,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-            ),
-          ),
-        ],
-                ),
-              );
-            }),
+                                const SizedBox(width: 16),
+                                Icon(Icons.calendar_today, size: 16, color: Colors.blue.shade600),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${service['bookings']} bookings',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
           ],
         ),
       ),
     );
   }
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature feature coming soon!'),
-        backgroundColor: AppTheme.primaryMauve,
+  Widget _buildLoadingState() {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.backgroundWhite, Color(0xFFF8F4FF)],
+          ),
+        ),
+        child: const SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryMauve),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Loading analytics...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(Object error) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.backgroundWhite, Color(0xFFF8F4FF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.red,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Failed to load analytics',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    ref.read(analyticsProvider.notifier).refresh();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryMauve,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

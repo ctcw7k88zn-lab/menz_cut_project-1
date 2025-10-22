@@ -4,32 +4,93 @@ import '../models/appointment_model.dart';
 import '../models/service_model.dart';
 import '../services/supabase_service.dart';
 
+// Date range model
+class DateRange {
+  final DateTime startDate;
+  final DateTime endDate;
+  final String label;
+
+  DateRange({
+    required this.startDate,
+    required this.endDate,
+    required this.label,
+  });
+
+  static DateRange today() {
+    final now = DateTime.now();
+    return DateRange(
+      startDate: DateTime(now.year, now.month, now.day),
+      endDate: DateTime(now.year, now.month, now.day, 23, 59, 59),
+      label: 'Today',
+    );
+  }
+
+  static DateRange thisWeek() {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    return DateRange(
+      startDate: DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+      endDate: DateTime(now.year, now.month, now.day, 23, 59, 59),
+      label: 'This Week',
+    );
+  }
+
+  static DateRange thisMonth() {
+    final now = DateTime.now();
+    return DateRange(
+      startDate: DateTime(now.year, now.month, 1),
+      endDate: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+      label: 'This Month',
+    );
+  }
+
+  static DateRange lastMonth() {
+    final now = DateTime.now();
+    final lastMonth = DateTime(now.year, now.month - 1, 1);
+    return DateRange(
+      startDate: lastMonth,
+      endDate: DateTime(now.year, now.month, 0, 23, 59, 59),
+      label: 'Last Month',
+    );
+  }
+
+  static DateRange custom(DateTime start, DateTime end) {
+    return DateRange(
+      startDate: DateTime(start.year, start.month, start.day),
+      endDate: DateTime(end.year, end.month, end.day, 23, 59, 59),
+      label: 'Custom Range',
+    );
+  }
+}
+
 // Analytics data model
 class AnalyticsData {
-  final double todayRevenue;
+  final double periodRevenue;
   final int totalBookings;
   final int cancellations;
   final double customerGrowth;
-  final List<AppointmentModel> todayAppointments;
+  final List<AppointmentModel> periodAppointments;
   final List<AppointmentModel> upcomingAppointments;
   final List<AppointmentModel> completedAppointments;
   final List<AppointmentModel> cancelledAppointments;
   final List<Map<String, dynamic>> monthlyRevenue;
   final List<Map<String, dynamic>> serviceDistribution;
   final List<Map<String, dynamic>> topServices;
+  final DateRange dateRange;
 
   AnalyticsData({
-    required this.todayRevenue,
+    required this.periodRevenue,
     required this.totalBookings,
     required this.cancellations,
     required this.customerGrowth,
-    required this.todayAppointments,
+    required this.periodAppointments,
     required this.upcomingAppointments,
     required this.completedAppointments,
     required this.cancelledAppointments,
     required this.monthlyRevenue,
     required this.serviceDistribution,
     required this.topServices,
+    required this.dateRange,
   });
 }
 
@@ -39,13 +100,22 @@ final analyticsProvider = StateNotifierProvider<AnalyticsNotifier, AsyncValue<An
 });
 
 class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
+  DateRange _currentDateRange = DateRange.thisMonth();
+  
   AnalyticsNotifier() : super(const AsyncValue.loading()) {
     loadAnalytics();
   }
 
-  Future<void> loadAnalytics() async {
+  DateRange get currentDateRange => _currentDateRange;
+
+  Future<void> loadAnalytics([DateRange? dateRange]) async {
     try {
       state = const AsyncValue.loading();
+      
+      // Update current date range if provided
+      if (dateRange != null) {
+        _currentDateRange = dateRange;
+      }
       
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
@@ -64,8 +134,8 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       // Get services for this salon
       final services = await SupabaseService.getServicesBySalon(salon.id);
 
-      // Calculate analytics data
-      final analyticsData = await _calculateAnalyticsData(allAppointments, services);
+      // Calculate analytics data for the selected date range
+      final analyticsData = await _calculateAnalyticsData(allAppointments, services, _currentDateRange);
       
       state = AsyncValue.data(analyticsData);
     } catch (e) {
@@ -76,78 +146,101 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
   Future<AnalyticsData> _calculateAnalyticsData(
     List<AppointmentModel> appointments,
     List<ServiceModel> services,
+    DateRange dateRange,
   ) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final thisMonth = DateTime(now.year, now.month, 1);
-    final lastMonth = DateTime(now.year, now.month - 1, 1);
-
-    // Today's appointments
-    final todayAppointments = appointments.where((apt) {
+    // Filter appointments for the selected date range
+    final periodAppointments = appointments.where((apt) {
       final aptDate = DateTime(apt.startAt.year, apt.startAt.month, apt.startAt.day);
-      return aptDate.isAtSameMomentAs(today);
+      final startDate = DateTime(dateRange.startDate.year, dateRange.startDate.month, dateRange.startDate.day);
+      final endDate = DateTime(dateRange.endDate.year, dateRange.endDate.month, dateRange.endDate.day);
+      
+      return (aptDate.isAtSameMomentAs(startDate) || aptDate.isAfter(startDate)) &&
+             (aptDate.isAtSameMomentAs(endDate) || aptDate.isBefore(endDate));
     }).toList();
 
-    // Calculate today's revenue
-    final todayRevenue = todayAppointments
+    print('📊 Analytics Debug:');
+    print('   Date Range: ${dateRange.startDate} to ${dateRange.endDate}');
+    print('   Total appointments: ${appointments.length}');
+    print('   Period appointments: ${periodAppointments.length}');
+    print('   Period appointments details:');
+    for (final apt in periodAppointments) {
+      print('     - ${apt.startAt}: ${apt.status} - \$${apt.totalAmount}');
+    }
+    
+    if (periodAppointments.isEmpty) {
+      print('⚠️  No appointments found in selected date range!');
+      print('   Available appointment dates:');
+      for (final apt in appointments) {
+        print('     - ${apt.startAt}');
+      }
+    }
+
+    // Calculate period revenue
+    final periodRevenue = periodAppointments
         .where((apt) => apt.status == AppointmentStatus.completed)
         .fold<double>(0.0, (sum, apt) => sum + apt.totalAmount);
 
-    // Total bookings today
-    final totalBookings = todayAppointments.length;
+    // Total bookings in period
+    final totalBookings = periodAppointments.length;
 
-    // Cancellations today
-    final cancellations = todayAppointments
+    // Cancellations in period
+    final cancellations = periodAppointments
         .where((apt) => apt.status == AppointmentStatus.cancelled)
         .length;
 
-    // Customer growth (compare this month vs last month)
-    final thisMonthAppointments = appointments.where((apt) {
-      return apt.startAt.isAfter(thisMonth) && apt.startAt.isBefore(DateTime(now.year, now.month + 1, 1));
+    // Customer growth (compare with previous period of same length)
+    final periodLength = dateRange.endDate.difference(dateRange.startDate).inDays + 1;
+    final previousPeriodStart = dateRange.startDate.subtract(Duration(days: periodLength));
+    final previousPeriodEnd = dateRange.startDate.subtract(const Duration(days: 1));
+    
+    final previousPeriodAppointments = appointments.where((apt) {
+      final aptDate = DateTime(apt.startAt.year, apt.startAt.month, apt.startAt.day);
+      final startDate = DateTime(previousPeriodStart.year, previousPeriodStart.month, previousPeriodStart.day);
+      final endDate = DateTime(previousPeriodEnd.year, previousPeriodEnd.month, previousPeriodEnd.day);
+      
+      return (aptDate.isAtSameMomentAs(startDate) || aptDate.isAfter(startDate)) &&
+             (aptDate.isAtSameMomentAs(endDate) || aptDate.isBefore(endDate));
     }).length;
 
-    final lastMonthAppointments = appointments.where((apt) {
-      return apt.startAt.isAfter(lastMonth) && apt.startAt.isBefore(thisMonth);
-    }).length;
-
-    final customerGrowth = lastMonthAppointments > 0 
-        ? ((thisMonthAppointments - lastMonthAppointments) / lastMonthAppointments) * 100
+    final customerGrowth = previousPeriodAppointments > 0 
+        ? ((totalBookings - previousPeriodAppointments) / previousPeriodAppointments) * 100
         : 0.0;
 
-    // Filter appointments by status
-    final upcomingAppointments = appointments.where((apt) => 
+    // Filter appointments by status (from period appointments)
+    final upcomingAppointments = periodAppointments.where((apt) => 
         apt.status == AppointmentStatus.pending || apt.status == AppointmentStatus.confirmed
     ).toList();
 
-    final completedAppointments = appointments.where((apt) => 
+    final completedAppointments = periodAppointments.where((apt) => 
         apt.status == AppointmentStatus.completed
     ).toList();
 
-    final cancelledAppointments = appointments.where((apt) => 
+    final cancelledAppointments = periodAppointments.where((apt) => 
         apt.status == AppointmentStatus.cancelled
     ).toList();
 
     // Monthly revenue data (last 6 months)
     final monthlyRevenue = _calculateMonthlyRevenue(appointments);
 
-    // Service distribution
-    final serviceDistribution = _calculateServiceDistribution(appointments, services);
+    // Service distribution (based on period appointments)
+    final serviceDistribution = _calculateServiceDistribution(periodAppointments, services);
 
-    // Top services
-    final topServices = _calculateTopServices(appointments, services);
+    // Top services (based on period appointments)
+    final topServices = _calculateTopServices(periodAppointments, services);
 
     return AnalyticsData(
-      todayRevenue: todayRevenue,
+      periodRevenue: periodRevenue,
       totalBookings: totalBookings,
       cancellations: cancellations,
       customerGrowth: customerGrowth,
-      todayAppointments: todayAppointments,
+      periodAppointments: periodAppointments,
       upcomingAppointments: upcomingAppointments,
       completedAppointments: completedAppointments,
       cancelledAppointments: cancelledAppointments,
       monthlyRevenue: monthlyRevenue,
       serviceDistribution: serviceDistribution,
       topServices: topServices,
+      dateRange: dateRange,
     );
   }
 
@@ -239,6 +332,31 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
+  }
+
+  // Change date range methods
+  Future<void> setDateRange(DateRange dateRange) async {
+    await loadAnalytics(dateRange);
+  }
+
+  Future<void> setToday() async {
+    await setDateRange(DateRange.today());
+  }
+
+  Future<void> setThisWeek() async {
+    await setDateRange(DateRange.thisWeek());
+  }
+
+  Future<void> setThisMonth() async {
+    await setDateRange(DateRange.thisMonth());
+  }
+
+  Future<void> setLastMonth() async {
+    await setDateRange(DateRange.lastMonth());
+  }
+
+  Future<void> setCustomRange(DateTime startDate, DateTime endDate) async {
+    await setDateRange(DateRange.custom(startDate, endDate));
   }
 
   // Refresh analytics data

@@ -174,8 +174,8 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
+        child: Row(
+          children: [
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -187,24 +187,45 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
                       color: Colors.black.withOpacity(0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    ),
+                  ],
+                ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedFilter,
                     isExpanded: true,
                     icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.primaryMauve),
-                    items: ['This Week', 'This Month', 'Last 3 Months', 'Custom Range'].map((String value) {
+                    items: ['Today', 'This Week', 'This Month', 'Last Month', 'Custom Range'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(value, style: const TextStyle(color: AppTheme.textPrimary)),
                       );
                     }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedFilter = newValue!;
-                      });
+                    onChanged: (String? newValue) async {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedFilter = newValue;
+                        });
+                        
+                        // Update analytics based on selected filter
+                        switch (newValue) {
+                          case 'Today':
+                            await ref.read(analyticsProvider.notifier).setToday();
+                            break;
+                          case 'This Week':
+                            await ref.read(analyticsProvider.notifier).setThisWeek();
+                            break;
+                          case 'This Month':
+                            await ref.read(analyticsProvider.notifier).setThisMonth();
+                            break;
+                          case 'Last Month':
+                            await ref.read(analyticsProvider.notifier).setLastMonth();
+                            break;
+                          case 'Custom Range':
+                            await _showCustomDateRangePicker();
+                            break;
+                        }
+                      }
                     },
                     ),
                   ),
@@ -223,20 +244,46 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Today\'s Summary',
-              style: TextStyle(
+            Text(
+              '${analyticsData.dateRange.label} Summary',
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textPrimary,
               ),
             ),
             const SizedBox(height: 16),
+            // Show helpful message when no data
+            if (analyticsData.totalBookings == 0 && analyticsData.dateRange.label == 'Custom Range')
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No appointments found in selected date range. Try selecting dates in October 2025 where appointments exist.',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               children: [
                 Expanded(child: _buildStatCard(
-                  'Today\'s Revenue', 
-                  '\$${analyticsData.todayRevenue.toStringAsFixed(0)}', 
+                  '${analyticsData.dateRange.label} Revenue', 
+                  '\$${analyticsData.periodRevenue.toStringAsFixed(0)}', 
                   Icons.attach_money, 
                   Colors.green
                 )),
@@ -1111,5 +1158,88 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showCustomDateRangePicker() async {
+    DateTime? startDate;
+    DateTime? endDate;
+    bool isDialogOpen = true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Select Date Range'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Start Date'),
+                subtitle: Text(startDate != null 
+                  ? '${startDate!.day}/${startDate!.month}/${startDate!.year}'
+                  : 'Select start date'),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime(2025, 10, 20), // Default to October 2025 where appointments exist
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (date != null) {
+                    setDialogState(() {
+                      startDate = date;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                title: const Text('End Date'),
+                subtitle: Text(endDate != null 
+                  ? '${endDate!.day}/${endDate!.month}/${endDate!.year}'
+                  : 'Select end date'),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: startDate ?? DateTime(2025, 10, 25), // Default to October 2025
+                    firstDate: startDate ?? DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (date != null) {
+                    setDialogState(() {
+                      endDate = date;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: startDate != null && endDate != null
+                ? () => Navigator.of(context).pop(true)
+                : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryMauve,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && startDate != null && endDate != null) {
+      await ref.read(analyticsProvider.notifier).setCustomRange(startDate!, endDate!);
+      setState(() {
+        _selectedFilter = 'Custom Range';
+      });
+    }
   }
 }

@@ -138,8 +138,19 @@ class SalonsNotifier extends StateNotifier<SalonsState> {
         
         // Category filter
         if (newFilters.categories != null && newFilters.categories!.isNotEmpty) {
-          // This would need to be implemented based on salon services
-          // For now, we'll skip this filter
+          // Check if salon has services matching the category
+          bool hasMatchingCategory = false;
+          for (final category in newFilters.categories!) {
+            // Map category names to service categories
+            final serviceCategory = _mapCategoryToServiceCategory(category);
+            if (salon.categories.contains(serviceCategory)) {
+              hasMatchingCategory = true;
+              break;
+            }
+          }
+          if (!hasMatchingCategory) {
+            return false;
+          }
         }
         
         // Rating filter
@@ -170,6 +181,37 @@ class SalonsNotifier extends StateNotifier<SalonsState> {
 
   Future<void> refreshSalons() async {
     await loadSalons();
+  }
+
+  Future<void> searchSalons(String query) async {
+    final newFilters = state.filters.copyWith(search: query);
+    await loadSalons(filters: newFilters);
+  }
+
+  Future<void> filterByCategory(String category) async {
+    final newFilters = state.filters.copyWith(categories: [category]);
+    await loadSalons(filters: newFilters);
+  }
+
+  Future<void> clearFilters() async {
+    await loadSalons(filters: const SalonFilters());
+  }
+
+  String _mapCategoryToServiceCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'haircut':
+        return 'Haircut';
+      case 'spa':
+        return 'Spa';
+      case 'coloring':
+        return 'Coloring';
+      case 'styling':
+        return 'Styling';
+      case 'beard':
+        return 'Beard';
+      default:
+        return category;
+    }
   }
 
   Future<void> refreshSalonWithReviews(String salonId) async {
@@ -223,10 +265,6 @@ class SalonsNotifier extends StateNotifier<SalonsState> {
 
   void updateFilters(SalonFilters filters) {
     state = state.copyWith(filters: filters);
-  }
-
-  void clearFilters() {
-    state = state.copyWith(filters: const SalonFilters());
   }
 
   void clearError() {

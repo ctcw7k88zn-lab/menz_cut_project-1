@@ -228,7 +228,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                         controller: _searchController,
                         hint: 'Search salons, services...',
                         onChanged: (value) {
-                          // Implement search
+                          _handleSearch(value);
                         },
                       ),
                     ),
@@ -339,6 +339,43 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                         ),
                       ],
                     ),
+                    // Active filters indicator
+                    if (_filters.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          ..._filters.entries.map((entry) {
+                            return Chip(
+                              label: Text('${entry.key}: ${entry.value}'),
+                              onDeleted: () {
+                                setState(() {
+                                  _filters.remove(entry.key);
+                                });
+                                if (_filters.isEmpty) {
+                                  ref.read(salonsProvider.notifier).clearFilters();
+                                }
+                              },
+                              backgroundColor: AppTheme.primaryMauve.withOpacity(0.1),
+                              labelStyle: TextStyle(
+                                color: AppTheme.primaryMauve,
+                                fontSize: 12,
+                              ),
+                            );
+                          }).toList(),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _filters.clear();
+                              });
+                              ref.read(salonsProvider.notifier).clearFilters();
+                            },
+                            child: const Text('Clear All'),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (salonsState.isLoading)
                       const LottieLoader(
@@ -362,8 +399,8 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                           itemCount: salons.length,
                           itemBuilder: (context, index) {
                             return Container(
-                              width: 280,
-                              margin: const EdgeInsets.only(right: 16),
+                              width: 260,
+                              margin: const EdgeInsets.only(right: 12),
                               child: SalonCard(
                                 salon: salons[index],
                                 onTap: () {
@@ -597,8 +634,8 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
             scale: _fabScaleAnimation.value,
             child: FloatingActionButton.extended(
               onPressed: () {
-                // Quick book functionality
-                context.push('/booking');
+                // Navigate to salon list for quick booking
+                context.push('/customer-salon-list');
               },
               backgroundColor: AppTheme.primaryMauve,
               icon: const Icon(Icons.add, color: Colors.white),
@@ -768,6 +805,10 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     setState(() {
       _filters['category'] = category;
     });
+    
+    // Filter salons by category
+    ref.read(salonsProvider.notifier).filterByCategory(category);
+    
     // Show a snackbar to indicate filtering
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -776,5 +817,18 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
         backgroundColor: AppTheme.primaryMauve,
       ),
     );
+  }
+
+  void _handleSearch(String query) {
+    setState(() {
+      _filters['search'] = query;
+    });
+    
+    // Trigger salon filtering with search query
+    if (query.isNotEmpty) {
+      ref.read(salonsProvider.notifier).searchSalons(query);
+    } else {
+      ref.read(salonsProvider.notifier).loadSalons();
+    }
   }
 }

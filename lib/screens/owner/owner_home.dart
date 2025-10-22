@@ -752,25 +752,13 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
   }
 
   void _navigateToAppointments() {
-    // Navigate to appointments tab in the owner dashboard
-    // Since we're using a dashboard with tabs, we need to communicate with the parent
-    // For now, we'll show a message that this would navigate to appointments
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navigate to Appointments tab'),
-        backgroundColor: AppTheme.primaryMauve,
-      ),
-    );
+    // Navigate to the official appointments page
+    context.push('/owner-appointments');
   }
 
   void _navigateToChat() {
-    // Navigate to chat tab in the owner dashboard
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navigate to Chat tab'),
-        backgroundColor: AppTheme.primaryMauve,
-      ),
-    );
+    // Navigate to the official chat page
+    context.push('/owner-chat');
   }
 
   void _showAddServiceModal() {

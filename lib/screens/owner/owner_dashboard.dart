@@ -9,7 +9,9 @@ import 'owner_chat.dart';
 import 'owner_profile.dart';
 
 class OwnerDashboardScreen extends ConsumerStatefulWidget {
-  const OwnerDashboardScreen({super.key});
+  final int? initialIndex;
+  
+  const OwnerDashboardScreen({super.key, this.initialIndex});
 
   @override
   ConsumerState<OwnerDashboardScreen> createState() => _OwnerDashboardScreenState();
@@ -67,6 +69,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen>
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
     _fadeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),

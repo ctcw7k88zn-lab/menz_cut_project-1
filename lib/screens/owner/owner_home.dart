@@ -3,15 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/app_theme.dart';
-import '../../providers/appointments_provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/chat_provider.dart';
+import '../../providers/home_dashboard_provider.dart';
 import '../../providers/services_provider.dart';
-import '../../providers/notifications_provider.dart';
-import '../../providers/reviews_provider.dart';
 import '../../models/appointment_model.dart';
 import '../../models/service_model.dart';
-import '../../services/app_api.dart';
+import '../../models/review_model.dart';
 import '../../widgets/service_form_modal.dart';
 
 class OwnerHomeScreen extends ConsumerStatefulWidget {
@@ -68,22 +64,8 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
 
   void _loadData() async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Get the authenticated salon owner
-      final authState = ref.read(authProvider);
-      if (authState.user != null) {
-        // Get the salon ID for this owner
-        final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
-        if (salon != null) {
-          // Load appointments for the salon owner's salon
-          ref.read(appointmentsProvider.notifier).loadAppointmentsForSalon(salon.id);
-          // Load notifications for the salon owner
-          ref.read(notificationsProvider.notifier).loadNotificationsForUser(authState.user!.id);
-          // Load reviews for the salon
-          ref.read(reviewsProvider.notifier).loadReviewsForSalon(salon.id);
-        }
-      }
-      ref.read(chatProvider.notifier).loadMessagesForUser('owner_1');
-      ref.read(servicesProvider.notifier).refreshServices();
+      // Load dashboard data using the new provider
+      ref.read(homeDashboardProvider.notifier).loadDashboardData();
     });
   }
 
@@ -97,19 +79,16 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final appointmentsState = ref.watch(appointmentsProvider);
-    final servicesState = ref.watch(servicesProvider);
-    final appointments = appointmentsState.when(
-      data: (data) => data,
-      loading: () => <AppointmentModel>[],
-      error: (_, __) => <AppointmentModel>[],
+    final dashboardState = ref.watch(homeDashboardProvider);
+    
+    return dashboardState.when(
+      data: (dashboardData) => _buildDashboardContent(dashboardData),
+      loading: () => _buildLoadingState(),
+      error: (error, stackTrace) => _buildErrorState(error),
     );
-    final services = servicesState.when(
-      data: (data) => data,
-      loading: () => <ServiceModel>[],
-      error: (_, __) => <ServiceModel>[],
-    );
+  }
 
+  Widget _buildDashboardContent(HomeDashboardData dashboardData) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -124,27 +103,110 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
             opacity: _fadeAnimation,
             child: SlideTransition(
               position: _slideAnimation,
-        child: CustomScrollView(
-          slivers: [
-                  _buildAppBar(),
-                    _buildWelcomeSection(),
-                  _buildDashboardCards(),
-                    _buildQuickActions(),
-                  _buildYourServices(services),
-                  _buildRecentAppointments(appointments),
-                  _buildRecentReviews(),
-                  _buildInsightsChart(),
+              child: CustomScrollView(
+                slivers: [
+                  _buildAppBar(dashboardData),
+                  _buildWelcomeSection(dashboardData),
+                  _buildDashboardCards(dashboardData),
+                  _buildQuickActions(),
+                  _buildYourServices(dashboardData.services),
+                  _buildRecentAppointments(dashboardData.recentAppointments),
+                  _buildRecentReviews(dashboardData.recentReviews),
+                  _buildInsightsChart(dashboardData.weeklyStats),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                  ],
-                ),
+                ],
               ),
             ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildLoadingState() {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.backgroundWhite, Color(0xFFF8F4FF)],
+          ),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: AppTheme.primaryMauve),
+              SizedBox(height: 16),
+              Text(
+                'Loading dashboard...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(Object error) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.backgroundWhite, Color(0xFFF8F4FF)],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Failed to load dashboard',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(homeDashboardProvider.notifier).refresh();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryMauve,
+                ),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(HomeDashboardData dashboardData) {
     return SliverAppBar(
       expandedHeight: 0,
       floating: true,
@@ -182,53 +244,42 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
               ),
             ],
           ),
-          child: Consumer(
-            builder: (context, ref, child) {
-              final notificationsState = ref.watch(notificationsProvider);
-              final unreadCount = notificationsState.when(
-                data: (notifications) => notifications.where((n) => !n.isRead).length,
-                loading: () => 0,
-                error: (_, __) => 0,
-              );
-              
-              return Stack(
-                children: [
-                  IconButton(
-                    onPressed: () => context.push('/notifications'),
-                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryMauve),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentGold,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : unreadCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+          child: Stack(
+            children: [
+              IconButton(
+                onPressed: () => context.push('/notifications'),
+                icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryMauve),
+              ),
+              if (dashboardData.unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentGold,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                ],
-              );
-            },
+                    child: Text(
+                      dashboardData.unreadNotifications > 99 ? '99+' : dashboardData.unreadNotifications.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
-      ),
+        ),
       ],
     );
   }
 
-  Widget _buildWelcomeSection() {
+  Widget _buildWelcomeSection(HomeDashboardData dashboardData) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.all(20),
@@ -248,16 +299,16 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
             ),
           ],
         ),
-      child: Row(
-        children: [
+        child: Row(
+          children: [
             AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (context, child) {
                 return Transform.scale(
                   scale: _pulseAnimation.value,
                   child: Container(
-            width: 60,
-            height: 60,
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
@@ -268,23 +319,23 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                           offset: const Offset(0, 5),
                         ),
                       ],
-            ),
-            child: const Icon(
-              Icons.business,
+                    ),
+                    child: const Icon(
+                      Icons.business,
                       color: AppTheme.primaryMauve,
-              size: 30,
-            ),
+                      size: 30,
+                    ),
                   ),
                 );
               },
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Welcome back!',
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Welcome back!',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -292,42 +343,57 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Elite Hair Studio',
-                    style: TextStyle(
+                  Text(
+                    dashboardData.salonName,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
-                ),
-                const SizedBox(height: 4),
-                Text(
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
                     'Ready to serve your customers',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 14,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDashboardCards() {
+  Widget _buildDashboardCards(HomeDashboardData dashboardData) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
-      children: [
-            Expanded(child: _buildStatCard('Today\'s Appointments', '12', Icons.calendar_today, Colors.blue)),
+          children: [
+            Expanded(child: _buildStatCard(
+              'All-Time Appointments', 
+              '${dashboardData.todayAppointments}', 
+              Icons.calendar_today, 
+              Colors.blue
+            )),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Earnings Today', '\$450', Icons.attach_money, Colors.green)),
+            Expanded(child: _buildStatCard(
+              'All-Time Earnings', 
+              '\$${dashboardData.todayEarnings.toStringAsFixed(0)}', 
+              Icons.attach_money, 
+              Colors.green
+            )),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Customers Served', '8', Icons.people, Colors.orange)),
+            Expanded(child: _buildStatCard(
+              'Customers Served', 
+              '${dashboardData.customersServed}', 
+              Icons.people, 
+              Colors.orange
+            )),
           ],
         ),
       ),
@@ -595,12 +661,12 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
     }
   }
 
-  Widget _buildInsightsChart() {
+  Widget _buildInsightsChart(Map<String, int> weeklyStats) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.all(20),
         padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.9),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
@@ -610,10 +676,10 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
               offset: const Offset(0, 5),
             ),
           ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             const Text(
               'Weekly Insights',
               style: TextStyle(
@@ -649,13 +715,13 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                   lineBarsData: [
                     LineChartBarData(
                       spots: [
-                        const FlSpot(0, 3),
-                        const FlSpot(1, 5),
-                        const FlSpot(2, 4),
-                        const FlSpot(3, 7),
-                        const FlSpot(4, 6),
-                        const FlSpot(5, 8),
-                        const FlSpot(6, 5),
+                        FlSpot(0, weeklyStats['Mon']?.toDouble() ?? 0),
+                        FlSpot(1, weeklyStats['Tue']?.toDouble() ?? 0),
+                        FlSpot(2, weeklyStats['Wed']?.toDouble() ?? 0),
+                        FlSpot(3, weeklyStats['Thu']?.toDouble() ?? 0),
+                        FlSpot(4, weeklyStats['Fri']?.toDouble() ?? 0),
+                        FlSpot(5, weeklyStats['Sat']?.toDouble() ?? 0),
+                        FlSpot(6, weeklyStats['Sun']?.toDouble() ?? 0),
                       ],
                       isCurved: true,
                       color: AppTheme.primaryMauve,
@@ -668,10 +734,10 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                     ),
                   ],
                 ),
-                ),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -987,7 +1053,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
     );
   }
 
-  Widget _buildRecentReviews() {
+  Widget _buildRecentReviews(List<ReviewModel> recentReviews) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.all(16.0),
@@ -1023,90 +1089,50 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
               ],
             ),
             const SizedBox(height: 16.0),
-            Consumer(
-              builder: (context, ref, child) {
-                final reviewsState = ref.watch(reviewsProvider);
-                
-                return reviewsState.when(
-                  data: (reviews) {
-                    if (reviews.isEmpty) {
-                      return Container(
-                        padding: const EdgeInsets.all(20.0),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.reviews_outlined,
-                              size: 48.0,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 12.0),
-                            Text(
-                              'No reviews yet',
-                              style: AppTheme.bodyLarge.copyWith(
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4.0),
-                            Text(
-                              'Reviews will appear here once customers start rating your salon',
-                              style: AppTheme.bodyMedium.copyWith(
-                                color: Colors.grey[500],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    
-                    // Show only the 3 most recent reviews
-                    final recentReviews = reviews.take(3).toList();
-                    
-                    return Column(
-                      children: recentReviews.map((review) => _buildReviewCard(review)).toList(),
-                    );
-                  },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  error: (error, stackTrace) => Container(
-                    padding: const EdgeInsets.all(20.0),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(12.0),
+            if (recentReviews.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20.0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.reviews_outlined,
+                      size: 48.0,
+                      color: Colors.grey[400],
                     ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Colors.red[400],
-                          size: 32.0,
-                        ),
-                        const SizedBox(height: 8.0),
-                        Text(
-                          'Failed to load reviews',
-                          style: AppTheme.bodyMedium.copyWith(
-                            color: Colors.red[400],
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 12.0),
+                    Text(
+                      'No reviews yet',
+                      style: AppTheme.bodyLarge.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                    const SizedBox(height: 4.0),
+                    Text(
+                      'Reviews will appear here once customers start rating your salon',
+                      style: AppTheme.bodyMedium.copyWith(
+                        color: Colors.grey[500],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: recentReviews.map((review) => _buildReviewCard(review)).toList(),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReviewCard(dynamic review) {
+  Widget _buildReviewCard(ReviewModel review) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       padding: const EdgeInsets.all(16.0),

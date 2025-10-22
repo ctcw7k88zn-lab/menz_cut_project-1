@@ -10,6 +10,7 @@ class SalonCard extends StatelessWidget {
   final bool showDistance;
   final double? distance;
   final bool isCompact;
+  final bool removeMargins;
 
   const SalonCard({
     super.key,
@@ -18,16 +19,19 @@ class SalonCard extends StatelessWidget {
     this.showDistance = false,
     this.distance,
     this.isCompact = false,
+    this.removeMargins = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GlassCard(
       onTap: onTap,
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spacing8,
-        vertical: AppTheme.spacing4,
-      ),
+      margin: removeMargins 
+          ? const EdgeInsets.symmetric(vertical: AppTheme.spacing4)
+          : const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacing8,
+              vertical: AppTheme.spacing4,
+            ),
       child: isCompact ? _buildCompactCard() : _buildFullCard(),
     );
   }
@@ -218,21 +222,23 @@ class SalonCard extends StatelessWidget {
                 ),
               ),
               if (showDistance && distance != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentGold.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Text(
-                    '${distance!.toStringAsFixed(1)} km',
-                    style: AppTheme.caption.copyWith(
-                      color: AppTheme.accentGold,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 10,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentGold.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                    child: Text(
+                      '${distance!.toStringAsFixed(1)} km',
+                      style: AppTheme.caption.copyWith(
+                        color: AppTheme.accentGold,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
                     ),
                   ),
                 ),

@@ -399,10 +399,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                           itemCount: salons.length,
                           itemBuilder: (context, index) {
                             return Container(
-                              width: 260,
-                              margin: const EdgeInsets.only(right: 12),
+                              width: 220,
+                              margin: const EdgeInsets.only(right: 6),
                               child: SalonCard(
                                 salon: salons[index],
+                                removeMargins: true,
                                 onTap: () {
                                   context.push('/salon-detail', extra: {'salon': salons[index]});
                                 },

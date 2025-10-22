@@ -214,15 +214,15 @@ class SupabaseService {
           .select('*')
           .eq('owner_id', ownerId)
           .eq('is_active', true)
-          .maybeSingle();
+          .limit(1); // Limit to 1 to avoid multiple rows error
       
       print('SupabaseService: Response: $response');
-      if (response == null) {
+      if (response.isEmpty) {
         print('SupabaseService: No salon found for owner');
         return null;
       }
       
-      final salon = _salonFromMap(response);
+      final salon = _salonFromMap(response.first);
       print('SupabaseService: Mapped salon: ${salon.id}');
       return salon;
     } catch (e) {
@@ -240,6 +240,13 @@ class SupabaseService {
     String? email,
   }) async {
     try {
+      // First check if salon already exists (race condition protection)
+      final existingSalon = await getSalonByOwnerId(ownerId);
+      if (existingSalon != null) {
+        print('SupabaseService: Salon already exists for owner, returning existing: ${existingSalon.id}');
+        return existingSalon;
+      }
+      
       final response = await _supabase
           .from('salons')
           .insert({
@@ -257,6 +264,14 @@ class SupabaseService {
       
       return _salonFromMap(response);
     } catch (e) {
+      // If insert fails due to duplicate, try to get existing salon
+      if (e.toString().contains('duplicate') || e.toString().contains('unique')) {
+        print('SupabaseService: Duplicate salon detected, fetching existing...');
+        final existingSalon = await getSalonByOwnerId(ownerId);
+        if (existingSalon != null) {
+          return existingSalon;
+        }
+      }
       throw Exception('Failed to create salon: ${e.toString()}');
     }
   }

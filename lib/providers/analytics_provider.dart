@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/appointment_model.dart';
 import '../models/service_model.dart';
+import '../models/salon_model.dart';
 import '../services/supabase_service.dart';
 
 // Date range model
@@ -122,10 +123,23 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
         throw Exception('User not authenticated');
       }
 
-      // Get salon for current user
-      final salon = await SupabaseService.getSalonByOwnerId(user.id);
+      // Get or create salon for current user
+      SalonModel? salon = await SupabaseService.getSalonByOwnerId(user.id);
       if (salon == null) {
-        throw Exception('No salon found for user');
+        print('📊 Analytics: No salon found for user, creating one...');
+        // Create a salon for the owner if it doesn't exist
+        final userName = user.userMetadata?['full_name'] ?? 
+                        user.email?.split('@')[0] ?? 
+                        'User';
+        salon = await SupabaseService.createSalonForOwner(
+          user.id,
+          name: "$userName's Salon",
+          description: 'Professional salon services',
+          address: '123 Main St', // Default address
+          phone: user.userMetadata?['phone'] ?? '',
+          email: user.email ?? '',
+        );
+        print('📊 Analytics: Created new salon: ${salon.id}');
       }
 
       // Get all appointments for this salon

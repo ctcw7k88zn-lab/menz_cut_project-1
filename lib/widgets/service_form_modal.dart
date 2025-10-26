@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:html' as html;
 import '../config/app_theme.dart';
 import '../models/service_model.dart';
 import '../providers/auth_provider.dart';
@@ -48,15 +47,6 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
     'Other'
   ];
 
-  final List<String> _sampleImages = [
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400',
-    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400',
-    'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=400',
-    'https://images.unsplash.com/photo-1562322140-8baeececf3df?w=400',
-    'https://images.unsplash.com/photo-1582095133179-bfd08e2fc75b?w=400',
-    'https://images.unsplash.com/photo-1594736797933-d0401ba2fe65?w=400',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -67,8 +57,6 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
       _selectedDuration = widget.service!.durationMinutes.toString();
       _selectedCategory = widget.service!.category;
       _selectedImageUrl = widget.service!.imageUrl;
-    } else {
-      _selectedImageUrl = _sampleImages[0];
     }
   }
 
@@ -80,476 +68,215 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    // For now, disable image upload on mobile platforms
+    // This can be enhanced later with image_picker package for mobile
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Image upload feature coming soon!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _saveService() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final authState = ref.read(authProvider);
+      if (authState.user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final service = ServiceModel(
+        id: widget.service?.id ?? const Uuid().v4(),
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        price: double.parse(_priceController.text),
+        durationMinutes: int.parse(_selectedDuration),
+        category: _selectedCategory,
+        imageUrl: _selectedImageUrl,
+        salonId: authState.user!.id,
+        isActive: true,
+        createdAt: widget.service?.createdAt ?? DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Save service via API
+      await AppApi.addService(service);
+      
+      widget.onSave(service);
+      
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.service == null 
+                ? 'Service created successfully!' 
+                : 'Service updated successfully!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error saving service: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save service: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+    return Dialog(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: const BoxConstraints(maxWidth: 500),
+        padding: const EdgeInsets.all(24),
       child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildImageSelector(),
-                    const SizedBox(height: 20),
+                  Text(
+                    widget.service == null ? 'Add Service' : 'Edit Service',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // Service Image
+              _buildImageSection(),
+              const SizedBox(height: 24),
+              
+              // Service Name
                     _buildNameField(),
                     const SizedBox(height: 16),
+              
+              // Service Description
                     _buildDescriptionField(),
                     const SizedBox(height: 16),
-                    _buildPriceField(),
-                    const SizedBox(height: 16),
-                    _buildDurationDropdown(),
-                    const SizedBox(height: 16),
-                    _buildCategoryDropdown(),
-                    const SizedBox(height: 20),
-                    _buildSaveButton(),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+              
+              // Price and Duration Row
+              Row(
+                children: [
+                  Expanded(child: _buildPriceField()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildDurationField()),
+                ],
               ),
-            ),
-          ],
+                    const SizedBox(height: 16),
+              
+              // Category
+              _buildCategoryField(),
+              const SizedBox(height: 24),
+              
+              // Action Buttons
+              _buildActionButtons(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryMauve.withOpacity(0.1),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            widget.service != null ? Icons.edit : Icons.add_circle,
-            color: AppTheme.primaryMauve,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            widget.service != null ? 'Edit Service' : 'Add New Service',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close, color: AppTheme.primaryMauve),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageSelector() {
+  Widget _buildImageSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Service Image',
-          style: TextStyle(
-            fontSize: 16,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 100,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _sampleImages.length + 1,
-            itemBuilder: (context, index) {
-              if (index == _sampleImages.length) {
-                return _buildAddImageButton();
-              }
-              
-              final imageUrl = _sampleImages[index];
-              final isSelected = _selectedImageUrl == imageUrl && _selectedImageBytes == null;
-              
-              return GestureDetector(
-                onTap: () => setState(() {
-                  _selectedImageUrl = imageUrl;
-                  _selectedImageBytes = null;
-                  _selectedImageFileName = null;
-                }),
+        GestureDetector(
+          onTap: _pickImage,
                 child: Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? AppTheme.primaryMauve : Colors.grey.shade300,
-                      width: isSelected ? 3 : 1,
-                    ),
-                    boxShadow: isSelected ? [
-                      BoxShadow(
-                        color: AppTheme.primaryMauve.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ] : null,
-                  ),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          width: 100,
-                          height: 100,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: AppTheme.primaryMauve,
-                              child: const Icon(Icons.image, color: Colors.white, size: 30),
-                            );
-                          },
-                        ),
-                      ),
-                      if (isSelected)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryMauve,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.check_circle,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        // Show selected uploaded image
-        if (_selectedImageBytes != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
             height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.successColor, width: 2),
+            width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: AppTheme.primaryMauve.withOpacity(0.3),
+                width: 2,
+                style: BorderStyle.solid,
+              ),
+                        borderRadius: BorderRadius.circular(12),
+              color: AppTheme.primaryMauve.withOpacity(0.05),
             ),
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.memory(
+            child: _selectedImageUrl != null || _selectedImageBytes != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: _selectedImageBytes != null
+                        ? Image.memory(
                     _selectedImageBytes!,
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedImageBytes = null;
-                          _selectedImageFileName = null;
-                        });
-                      },
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Custom Image Selected',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        // Add custom image button
-        const SizedBox(height: 12),
-        SizedBox(
+                          )
+                        : Image.network(
+                            _selectedImageUrl!,
+                            fit: BoxFit.cover,
           width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              print('🖱️ Add Custom Image button clicked');
-              _pickImage();
-            },
-            icon: const Icon(Icons.add_a_photo),
-            label: const Text('Add Custom Image'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryMauve,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+                            height: double.infinity,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildImagePlaceholder();
+                            },
+                          ),
+                  )
+                : _buildImagePlaceholder(),
           ),
         ),
-        // Clear all images button
-        if (_selectedImageUrl != null || _selectedImageBytes != null) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _selectedImageUrl = null;
-                  _selectedImageBytes = null;
-                  _selectedImageFileName = null;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🗑️ All images cleared'),
-                    backgroundColor: AppTheme.warningColor,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.clear_all),
-              label: const Text('Clear All Images'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.warningColor,
-                side: BorderSide(color: AppTheme.warningColor),
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  Widget _buildAddImageButton() {
-    return GestureDetector(
-      onTap: () {
-        print('🖱️ Upload Image button clicked');
-        _pickImage();
-      },
-      child: Container(
-        width: 100,
-        height: 100,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.primaryMauve,
-            width: 3,
-            style: BorderStyle.solid,
-          ),
-          color: AppTheme.primaryMauve.withOpacity(0.15),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryMauve.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Column(
+  Widget _buildImagePlaceholder() {
+    return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.cloud_upload,
-              color: AppTheme.primaryMauve,
-              size: 36,
-            ),
-            SizedBox(height: 6),
+          Icons.add_photo_alternate_outlined,
+          size: 32,
+          color: AppTheme.primaryMauve.withOpacity(0.6),
+        ),
+        const SizedBox(height: 8),
             Text(
-              'UPLOAD',
+          'Tap to add image',
               style: TextStyle(
-                color: AppTheme.primaryMauve,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
-            Text(
-              'IMAGE',
-              style: TextStyle(
-                color: AppTheme.primaryMauve,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+            color: AppTheme.primaryMauve.withOpacity(0.6),
+            fontSize: 14,
               ),
             ),
           ],
-        ),
-      ),
     );
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      print('🖼️ Image picker triggered');
-      
-      // Create a hidden file input element
-      final html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
-      uploadInput.accept = 'image/*';
-      uploadInput.multiple = false;
-      uploadInput.style.display = 'none';
-      
-      // Add to DOM
-      html.document.body?.append(uploadInput);
-      
-      // Create a completer to handle the async file selection
-      final completer = Completer<void>();
-      
-      // Listen for file selection
-      uploadInput.onChange.listen((e) async {
-        print('📁 File selection changed');
-        final files = uploadInput.files;
-        if (files != null && files.isNotEmpty) {
-          final file = files[0];
-          print('📄 File selected: ${file.name}, size: ${file.size} bytes');
-          
-          // Validate file type
-          if (!file.type.startsWith('image/')) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Please select an image file'),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-            uploadInput.remove();
-            completer.complete();
-            return;
-          }
-          
-          // Validate file size (max 10MB)
-          if (file.size > 10 * 1024 * 1024) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Image file too large. Max size: 10MB'),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-            uploadInput.remove();
-            completer.complete();
-            return;
-          }
-          
-          final reader = html.FileReader();
-          
-          reader.onLoadEnd.listen((e) {
-            print('✅ File read completed');
-            try {
-              final bytes = reader.result as List<int>;
-              setState(() {
-                _selectedImageBytes = Uint8List.fromList(bytes);
-                _selectedImageFileName = file.name;
-                _selectedImageUrl = null; // Clear sample image selection
-              });
-              
-              // Show success message
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('✅ Image selected: ${file.name}'),
-                  backgroundColor: AppTheme.successColor,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-              
-              print('🎉 Image successfully loaded into memory');
-            } catch (e) {
-              print('❌ Error processing image: $e');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('❌ Failed to process image: $e'),
-                  backgroundColor: AppTheme.errorColor,
-                ),
-              );
-            }
-            
-            // Remove from DOM
-            uploadInput.remove();
-            completer.complete();
-          });
-          
-          reader.onError.listen((e) {
-            print('❌ File read error: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Failed to read image file'),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-            uploadInput.remove();
-            completer.complete();
-          });
-          
-          // Read the file
-          reader.readAsArrayBuffer(file);
-        } else {
-          print('❌ No files selected');
-          uploadInput.remove();
-          completer.complete();
-        }
-      });
-      
-      // Trigger file selection dialog
-      print('🖱️ Triggering file selection dialog');
-      uploadInput.click();
-      
-      // Wait for file selection to complete
-      await completer.future;
-      
-    } catch (e) {
-      print('❌ Image picker error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Failed to open image picker: $e'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    }
   }
 
   Widget _buildNameField() {
@@ -557,18 +284,15 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
       controller: _nameController,
       decoration: InputDecoration(
         labelText: 'Service Name',
-        prefixIcon: const Icon(Icons.business_center, color: AppTheme.primaryMauve),
+        hintText: 'e.g., Haircut & Styling',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primaryMauve, width: 2),
-        ),
+        prefixIcon: const Icon(Icons.content_cut),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter service name';
+        if (value == null || value.trim().isEmpty) {
+          return 'Please enter a service name';
         }
         return null;
       },
@@ -578,21 +302,18 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
   Widget _buildDescriptionField() {
     return TextFormField(
       controller: _descriptionController,
-      maxLines: 3,
       decoration: InputDecoration(
         labelText: 'Description',
-        prefixIcon: const Icon(Icons.description, color: AppTheme.primaryMauve),
+        hintText: 'Describe your service...',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primaryMauve, width: 2),
+        prefixIcon: const Icon(Icons.description),
         ),
-      ),
+      maxLines: 3,
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter service description';
+        if (value == null || value.trim().isEmpty) {
+          return 'Please enter a description';
         }
         return null;
       },
@@ -602,23 +323,21 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
   Widget _buildPriceField() {
     return TextFormField(
       controller: _priceController,
-      keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: 'Price (\$)',
-        prefixIcon: const Icon(Icons.attach_money, color: AppTheme.primaryMauve),
+        hintText: '0.00',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primaryMauve, width: 2),
+        prefixIcon: const Icon(Icons.attach_money),
         ),
-      ),
+      keyboardType: TextInputType.number,
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter service price';
+        if (value == null || value.trim().isEmpty) {
+          return 'Please enter a price';
         }
-        if (double.tryParse(value) == null) {
+        final price = double.tryParse(value);
+        if (price == null || price <= 0) {
           return 'Please enter a valid price';
         }
         return null;
@@ -626,97 +345,76 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
     );
   }
 
-  Widget _buildDurationDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Duration',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+  Widget _buildDurationField() {
+    return DropdownButtonFormField<String>(
+      value: _selectedDuration,
+      decoration: InputDecoration(
+        labelText: 'Duration',
+        border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedDuration,
-              isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.primaryMauve),
+        prefixIcon: const Icon(Icons.access_time),
+      ),
               items: _durations.map((duration) {
-                return DropdownMenuItem<String>(
+        return DropdownMenuItem(
                   value: duration,
                   child: Text('$duration minutes'),
                 );
               }).toList(),
-              onChanged: (String? newValue) {
+      onChanged: (value) {
                 setState(() {
-                  _selectedDuration = newValue!;
+          _selectedDuration = value!;
                 });
               },
-            ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildCategoryDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Category',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+  Widget _buildCategoryField() {
+    return DropdownButtonFormField<String>(
+      value: _selectedCategory,
+      decoration: InputDecoration(
+        labelText: 'Category',
+        border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedCategory,
-              isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.primaryMauve),
+        prefixIcon: const Icon(Icons.category),
+      ),
               items: _categories.map((category) {
-                return DropdownMenuItem<String>(
+        return DropdownMenuItem(
                   value: category,
                   child: Text(category),
                 );
               }).toList(),
-              onChanged: (String? newValue) {
+      onChanged: (value) {
                 setState(() {
-                  _selectedCategory = newValue!;
+          _selectedCategory = value!;
                 });
               },
-            ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: _isUploading ? null : () => Navigator.of(context).pop(),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Cancel'),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
       child: ElevatedButton(
         onPressed: _isUploading ? null : _saveService,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primaryMauve,
+              foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -727,120 +425,14 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  color: Colors.white,
                   strokeWidth: 2,
-                ),
-              )
-            : Text(
-                widget.service != null ? 'Update Service' : 'Add Service',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-      ),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(widget.service == null ? 'Create Service' : 'Update Service'),
+          ),
+        ),
+      ],
     );
-  }
-
-  void _saveService() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isUploading = true;
-      });
-
-      try {
-        final authState = ref.read(authProvider);
-        if (authState.user == null) {
-          throw Exception('User not authenticated');
-        }
-
-        // Get or create salon for the owner
-        String salonId;
-        try {
-          print('Getting salon for user: ${authState.user!.id}');
-          final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
-          print('Salon result: $salon');
-          
-          if (salon != null) {
-            salonId = salon.id;
-            print('Using existing salon: $salonId');
-          } else {
-            print('No salon found, creating new one...');
-            // Create a salon for the owner if it doesn't exist
-            final newSalon = await AppApi.createSalonForOwner(
-              authState.user!.id,
-              name: authState.user!.fullName + "'s Salon",
-              description: 'Professional salon services',
-              address: '123 Main St', // Default address
-              phone: authState.user!.phone ?? '',
-              email: authState.user!.email,
-            );
-            salonId = newSalon.id;
-            print('Created new salon: $salonId');
-          }
-        } catch (e) {
-          print('Error getting salon: $e');
-          throw Exception('Failed to get salon: $e');
-        }
-
-        // Upload image if selected
-        String? imageUrl = _selectedImageUrl;
-        if (_selectedImageBytes != null && _selectedImageFileName != null) {
-          try {
-            print('Uploading image: ${_selectedImageFileName} (${_selectedImageBytes!.length} bytes)');
-            imageUrl = await AppApi.uploadServiceImage(
-              authState.user!.id,
-              _selectedImageBytes!,
-              _selectedImageFileName!,
-            );
-            print('Image uploaded successfully: $imageUrl');
-          } catch (e) {
-            print('Image upload failed: $e');
-            throw Exception('Failed to upload image: $e');
-          }
-        } else {
-          print('No image selected for upload');
-        }
-
-        final service = ServiceModel(
-          id: widget.service?.id ?? const Uuid().v4(),
-          name: _nameController.text.trim(),
-          description: _descriptionController.text.trim(),
-          price: double.parse(_priceController.text),
-          durationMinutes: int.parse(_selectedDuration),
-          category: _selectedCategory,
-          imageUrl: imageUrl,
-          salonId: salonId,
-          createdAt: widget.service?.createdAt ?? DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        widget.onSave(service);
-        Navigator.pop(context);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.service != null 
-                  ? 'Service updated successfully!' 
-                  : 'Service added successfully!'
-            ),
-            backgroundColor: AppTheme.primaryMauve,
-          ),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      } finally {
-        setState(() {
-          _isUploading = false;
-        });
-      }
-    }
   }
 }

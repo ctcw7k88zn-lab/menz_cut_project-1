@@ -1,9 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/app_theme.dart';
 import '../../providers/ai_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/ai_suggestion_model.dart';
 import '../../widgets/lottie_loader.dart';
 
@@ -22,6 +26,8 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
   late Animation<double> _suggestionFadeAnimation;
   
   String? _selectedImagePath;
+  File? _selectedImageFile;
+  Uint8List? _selectedImageBytes; // For web platform
   bool _isGenerating = false;
 
   @override
@@ -169,7 +175,11 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
                         )
                       else if (aiState.error != null)
                         _buildErrorState(aiState.error!)
-                      else if (aiState.suggestions.isNotEmpty)
+                      else if (aiState.suggestions.isNotEmpty) ...[
+                        // Face Angle Summary (show once at the top)
+                        _buildFaceAngleSummary(aiState.suggestions.first),
+                        const SizedBox(height: 24),
+                        // Individual suggestions
                         FadeTransition(
                           opacity: _suggestionFadeAnimation,
                           child: Column(
@@ -178,6 +188,36 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
                             }).toList(),
                           ),
                         ),
+                      ] else ...[
+                        // No suggestions but image is selected
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryMauve.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                size: 48,
+                                color: AppTheme.primaryMauve,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No suggestions generated yet',
+                                style: AppTheme.heading3,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Click "Generate AI Suggestions" to analyze your photo',
+                                style: AppTheme.bodySmall,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ] else ...[
                       _buildEmptyState(),
                     ],
@@ -396,20 +436,59 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: _selectedImagePath != null
-                ? Image.network(
-                    _selectedImagePath!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.primaryMauve.withOpacity(0.1),
-                        child: const Icon(
-                          Icons.person,
-                          size: 64,
-                          color: AppTheme.primaryMauve,
-                        ),
-                      );
-                    },
-                  )
+                ? (_selectedImagePath!.startsWith('http')
+                    ? Image.network(
+                        _selectedImagePath!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: AppTheme.primaryMauve.withOpacity(0.1),
+                            child: const Icon(
+                              Icons.person,
+                              size: 64,
+                              color: AppTheme.primaryMauve,
+                            ),
+                          );
+                        },
+                      )
+                    : (kIsWeb && _selectedImageBytes != null
+                        ? Image.memory(
+                            _selectedImageBytes!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppTheme.primaryMauve.withOpacity(0.1),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 64,
+                                  color: AppTheme.primaryMauve,
+                                ),
+                              );
+                            },
+                          )
+                        : (!kIsWeb && _selectedImageFile != null
+                            ? Image.file(
+                                _selectedImageFile!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: AppTheme.primaryMauve.withOpacity(0.1),
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 64,
+                                      color: AppTheme.primaryMauve,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                color: AppTheme.primaryMauve.withOpacity(0.1),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 64,
+                                  color: AppTheme.primaryMauve,
+                                ),
+                              ))))
                 : Container(
                     color: AppTheme.primaryMauve.withOpacity(0.1),
                     child: const Icon(
@@ -573,122 +652,271 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
     );
   }
 
-  Widget _buildSuggestionCard(AISuggestionModel suggestion) {
+  Widget _buildFaceAngleSummary(AISuggestionModel firstSuggestion) {
+    final faceShape = firstSuggestion.styleDetails?['face_shape'] ?? 'Not detected';
+    final faceAngle = firstSuggestion.styleDetails?['face_angle'] ?? 'Not detected';
+    
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: AppTheme.glassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with confidence score
-            Row(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.accentGold.withOpacity(0.3),
+            AppTheme.primaryMauve.withOpacity(0.2),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.accentGold.withOpacity(0.5),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.accentGold.withOpacity(0.3),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Face Shape - Large and prominent
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.accentGold.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.accentGold.withOpacity(0.5),
+                width: 2,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.goldGradient,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                const Icon(
+                  Icons.face,
+                  color: AppTheme.accentGold,
+                  size: 32,
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'FACE SHAPE',
+                      style: TextStyle(
+                        color: AppTheme.accentGold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      faceShape.toString().toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Face Angle - Large and prominent
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryMauve.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.primaryMauve.withOpacity(0.5),
+                width: 2,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.camera_alt,
+                  color: AppTheme.primaryMauve,
+                  size: 32,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.auto_awesome, color: Colors.white, size: 12),
-                      const SizedBox(width: 4),
                       Text(
-                        '${(suggestion.confidence * 100).toInt()}% Match',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        'FACE ANGLE',
+                        style: TextStyle(
+                          color: AppTheme.primaryMauve,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        faceAngle.toString(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionCard(AISuggestionModel suggestion) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.primaryMauve.withOpacity(0.15),
+              AppTheme.accentGold.withOpacity(0.1),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppTheme.primaryMauve.withOpacity(0.4),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryMauve.withOpacity(0.2),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Haircut Name - Large and Bold
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryMauve.withOpacity(0.4),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.content_cut,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'RECOMMENDED HAIRCUT',
+                        style: TextStyle(
+                          color: AppTheme.primaryMauve,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        suggestion.styleName.toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.4),
+                              blurRadius: 6,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => _bookSuggestion(suggestion),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Book This Style',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
-            // Style image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                suggestion.styleImageUrl,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryMauve.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 24),
+            // Book Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _bookSuggestion(suggestion),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  backgroundColor: AppTheme.primaryMauve,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 8,
+                  shadowColor: AppTheme.primaryMauve.withOpacity(0.5),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.calendar_today, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'BOOK THIS STYLE',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.style,
-                      size: 64,
-                      color: AppTheme.primaryMauve,
-                    ),
-                  );
-                },
+                  ],
+                ),
               ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Style details
-            Text(
-              suggestion.styleName,
-              style: AppTheme.heading3,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              suggestion.description,
-              style: AppTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            
-            // Features
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: suggestion.features.map((feature) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryMauve.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primaryMauve.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    feature,
-                    style: AppTheme.bodySmall.copyWith(
-                      color: AppTheme.primaryMauve,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                );
-              }).toList(),
             ),
           ],
         ),
@@ -696,27 +924,102 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
     );
   }
 
-  void _selectImage(String source) {
-    // Mock image selection
-    setState(() {
-      _selectedImagePath = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400';
-    });
+  Future<void> _selectImage(String source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final ImageSource imageSource = source == 'camera' ? ImageSource.camera : ImageSource.gallery;
+      
+      final XFile? image = await picker.pickImage(
+        source: imageSource,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        if (kIsWeb) {
+          // Web platform - read bytes instead of File
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedImageBytes = bytes;
+            _selectedImagePath = image.path; // Keep path for reference
+            _selectedImageFile = null; // Not used on web
+          });
+        } else {
+          // Mobile/Desktop platform - use File
+          setState(() {
+            _selectedImageFile = File(image.path);
+            _selectedImagePath = image.path;
+            _selectedImageBytes = null; // Not used on mobile
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to select image: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   void _generateSuggestions() async {
-    if (_selectedImagePath == null) return;
+    if (kIsWeb) {
+      if (_selectedImageBytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select an image first'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+    } else {
+      if (_selectedImageFile == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select an image first'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+    }
     
     setState(() {
       _isGenerating = true;
     });
     
     try {
-      // Create a mock File object for the image URL
-      // In a real app, you would use image_picker to get an actual File
-      final mockFile = File(_selectedImagePath!);
+      // Get current user ID from auth provider
+      final authState = ref.read(authProvider);
       
-      // Generate AI suggestions using the provider
-      await ref.read(aiProvider.notifier).generateSuggestions('customer_1', mockFile);
+      // Check if user is logged in
+      if (authState.user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please login first to generate AI suggestions'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        // Navigate to login
+        context.push('/login?role=customer');
+        return;
+      }
+      
+      final userId = authState.user!.id;
+      print('🔐 Using user ID for AI suggestions: $userId');
+      
+      if (kIsWeb) {
+        // Web platform - use bytes directly
+        if (_selectedImageBytes != null) {
+          await ref.read(aiProvider.notifier).generateSuggestionsFromBytes(userId, _selectedImageBytes!);
+        }
+      } else {
+        // Mobile/Desktop platform - use the File directly
+        await ref.read(aiProvider.notifier).generateSuggestions(userId, _selectedImageFile!);
+      }
       
       // Start suggestion animation
       _suggestionAnimationController.forward();

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/ai_suggestion_model.dart';
 import '../services/app_api.dart';
 
@@ -47,7 +49,11 @@ class AINotifier extends StateNotifier<AIState> {
     );
 
     try {
-      final suggestions = await AppApi.getAISuggestions('default_user');
+      // Get actual user ID from Supabase auth
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+      final userId = currentUser?.id ?? 'default_user';
+      final suggestions = await AppApi.getAISuggestions(userId);
       state = state.copyWith(
         suggestions: suggestions,
         isLoading: false,
@@ -101,6 +107,49 @@ class AINotifier extends StateNotifier<AIState> {
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
+      );
+    }
+  }
+
+  // Web-compatible method that accepts bytes directly
+  Future<void> generateSuggestionsFromBytes(String userId, Uint8List imageBytes) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+    );
+
+    try {
+      print('🔮 Generating AI suggestions for user: $userId');
+      print('🔮 Image bytes length: ${imageBytes.length}');
+      final suggestions = await AppApi.generateAISuggestionsFromBytes(userId, imageBytes);
+      print('✅ Received ${suggestions.length} suggestions');
+      if (suggestions.isNotEmpty) {
+        print('📋 First suggestion: ${suggestions.first.name}');
+        print('📋 Face angle: ${suggestions.first.styleDetails?['face_angle']}');
+        print('📋 Description: ${suggestions.first.description}');
+        state = state.copyWith(
+          suggestions: suggestions,
+          isLoading: false,
+          error: null,
+        );
+      } else {
+        print('⚠️ No suggestions returned! This might indicate:');
+        print('   1. API returned empty response');
+        print('   2. Parsing failed');
+        print('   3. Response format was unexpected');
+        // Set error message but don't throw - let UI show the error
+        state = state.copyWith(
+          suggestions: [],
+          isLoading: false,
+          error: 'No suggestions generated. The API might have returned an empty response or the response format was unexpected. Please check the console for details.',
+        );
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error generating suggestions: $e');
+      print('❌ Stack trace: $stackTrace');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to generate AI suggestions: ${e.toString()}',
       );
     }
   }

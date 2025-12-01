@@ -29,6 +29,7 @@ import 'screens/auth/forgot_password_screen.dart';
 import 'screens/shared/salon_detail_screen.dart';
 import 'screens/shared/booking_screen.dart';
 import 'screens/shared/notifications_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,14 +42,55 @@ void main() async {
       print('No .env file found, using default values');
     }
     
-    // Initialize Supabase with environment variables or defaults
+    // Initialize Supabase - Use correct URL based on platform
+    // For mobile devices, use your computer's local network IP (e.g., 192.168.1.15)
+    // For web/desktop, ALWAYS use 127.0.0.1 (ignore .env for web)
+    String supabaseUrl;
+    if (kIsWeb) {
+      // Web platform - ALWAYS use localhost (ignore .env to prevent network IP issues)
+      supabaseUrl = 'http://127.0.0.1:54321';
+      print('💻 Web platform detected - FORCING localhost: $supabaseUrl');
+      print('⚠️  Web always uses 127.0.0.1, ignoring SUPABASE_URL from .env');
+    } else {
+      // Mobile/Desktop platform
+      // IMPORTANT: For mobile devices, you MUST set SUPABASE_URL in .env file
+      // to your computer's local network IP address
+      // 
+      // Steps to find your IP:
+      // 1. Open CMD and run: ipconfig
+      // 2. Find "IPv4 Address" under your WiFi/Ethernet adapter (usually 192.168.x.x)
+      // 3. Create/update .env file with: SUPABASE_URL=http://YOUR_IP:54321
+      //
+      // Example: SUPABASE_URL=http://192.168.1.15:54321
+      //
+      // Also make sure:
+      // - Your phone and computer are on the same WiFi network
+      // - Windows Firewall allows connections on port 54321
+      // - Supabase local is running
+      
+      supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'http://127.0.0.1:54321';
+      
+      if (!supabaseUrl.contains('127.0.0.1') && !supabaseUrl.contains('localhost')) {
+        print('📱 Mobile device - using network IP: $supabaseUrl');
+        print('⚠️  Verify this IP is correct and Supabase is accessible from network!');
+      } else {
+        print('💻 Desktop or no .env - using localhost: $supabaseUrl');
+        print('⚠️  For mobile, set SUPABASE_URL in .env to your computer\'s network IP!');
+      }
+    }
+    
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+    
+    print('🔗 Supabase URL: $supabaseUrl');
+    
+    // Initialize Supabase
     await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL'] ?? 'http://192.168.1.15:54321',
-      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
     );
     
     print('✅ Supabase initialized successfully');
-    print('🔗 Supabase URL: ${dotenv.env['SUPABASE_URL'] ?? 'http://192.168.1.15:54321'}');
+    print('🔗 Supabase URL: ${dotenv.env['SUPABASE_URL'] ?? supabaseUrl}');
     print('🔑 Using Supabase backend: ${!AppEnv.enableMock}');
     
     // Initialize local data service (Hive) - keep for fallback

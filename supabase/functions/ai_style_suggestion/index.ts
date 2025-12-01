@@ -20,11 +20,12 @@ serve(async (req) => {
     )
 
     // Parse request body
-    const { image_url, user_id, salon_id, service_id } = await req.json()
+    const body = await req.json()
+    const { image_url, user_id, image_base64, prompt } = body
 
-    if (!image_url || !user_id) {
+    if (!user_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
+        JSON.stringify({ error: 'Missing user_id' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -32,69 +33,113 @@ serve(async (req) => {
       )
     }
 
-    // Mock AI suggestions (replace with actual AI service integration)
-    const mockSuggestions = [
-      {
-        type: 'haircut',
-        title: 'Modern Bob Cut',
-        description: 'A sleek, modern bob that frames your face beautifully',
-        confidence: 0.85,
-        tags: ['short', 'modern', 'professional'],
-        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
-        estimated_price: 45,
-        duration_minutes: 60,
-        difficulty: 'medium'
-      },
-      {
-        type: 'haircut',
-        title: 'Layered Pixie',
-        description: 'A trendy pixie cut with subtle layers for texture',
-        confidence: 0.78,
-        tags: ['short', 'trendy', 'low-maintenance'],
-        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
-        estimated_price: 40,
-        duration_minutes: 45,
-        difficulty: 'easy'
-      },
-      {
-        type: 'styling',
-        title: 'Beach Waves',
-        description: 'Effortless beach waves for a relaxed, summery look',
-        confidence: 0.72,
-        tags: ['waves', 'casual', 'summer'],
-        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
-        estimated_price: 35,
-        duration_minutes: 30,
-        difficulty: 'easy'
-      },
-      {
-        type: 'color',
-        title: 'Balayage Highlights',
-        description: 'Natural-looking highlights that grow out beautifully',
-        confidence: 0.68,
-        tags: ['highlights', 'natural', 'low-maintenance'],
-        image_url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
-        estimated_price: 120,
-        duration_minutes: 180,
-        difficulty: 'hard'
-      }
-    ]
-
-    // Filter suggestions based on salon services if provided
-    let suggestions = mockSuggestions
-    if (salon_id) {
-      // In a real implementation, you would filter based on available salon services
-      suggestions = mockSuggestions.filter(s => s.estimated_price <= 100) // Example filter
+    // Use OpenRouter Grok API
+    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') ?? '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'
+    
+    // Build request body for OpenRouter
+    const imageData = image_base64 || (image_url ? await fetch(image_url).then(r => r.arrayBuffer()).then(b => btoa(String.fromCharCode(...new Uint8Array(b)))) : null)
+    
+    if (!imageData) {
+      return new Response(
+        JSON.stringify({ error: 'Missing image data' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
-    // Return suggestions
+    const openRouterRequest = {
+      model: "x-ai/grok-4",
+      messages: [
+        {
+          role: "user",
+          content: prompt ? JSON.parse(prompt) : [
+            {
+              type: "text",
+              text: `Analyze this person's face image carefully and provide the following analysis:
+
+1. FIRST, identify the FACE SHAPE of the person in the image:
+   - Determine the face shape category: Oval, Round, Square, Diamond, Heart, Triangle, or Oblong
+   - Describe the face shape clearly (e.g., "Oval face shape", "Round face shape", "Diamond face shape")
+   - Also note the face angle: front-facing (0 degrees), side profile (90 degrees), three-quarter view, etc.
+
+2. THEN, based on this face shape and angle, suggest 2-3 best haircuts that would suit this person:
+   - For each haircut, provide:
+     * Name of the haircut style
+     * Description
+     * Why this haircut is best for this person based on their face shape and angle
+     * Confidence score (0-1)
+     * Haircut length (short, medium, long)
+     * Style category (classic, modern, trendy, casual, professional)
+   
+3. Return the response in this EXACT JSON format:
+{
+  "face_shape": "Oval/Round/Square/Diamond/Heart/Triangle/Oblong",
+  "face_angle": "description of face angle (e.g., 'Front-facing at 0 degrees' or 'Three-quarter left view at 45 degrees')",
+  "face_angle_degrees": approximate angle number (0-180),
+  "best_haircuts": [
+    {
+      "name": "Haircut name",
+      "description": "Detailed description",
+      "why_best": "Explanation why this haircut is best for this face shape and angle",
+      "confidence": 0.85,
+      "haircut_type": "short/medium/long",
+      "style_category": "modern/classic/trendy/casual"
+    }
+  ]
+}
+
+IMPORTANT: 
+- First identify the face shape (Oval, Round, Square, Diamond, Heart, Triangle, or Oblong)
+- Then determine the face angle
+- Finally, suggest haircuts that complement both the face shape and angle
+- Format your response clearly: "Face Shape: [shape name]. Face Angle: [angle description]. According to this face shape and angle, these haircuts are best for you:"`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${imageData}`
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2048,
+    }
+
+    // Call OpenRouter API
+    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://menzcut.app',
+        'X-Title': 'MenzCut AI Hair Suggestions',
+      },
+      body: JSON.stringify(openRouterRequest),
+    })
+
+    if (!openRouterResponse.ok) {
+      const errorText = await openRouterResponse.text()
+      throw new Error(`OpenRouter API error: ${openRouterResponse.status} - ${errorText}`)
+    }
+
+    const openRouterData = await openRouterResponse.json()
+    
+    if (!openRouterData.choices || !openRouterData.choices[0] || !openRouterData.choices[0].message) {
+      throw new Error('Invalid response from OpenRouter API')
+    }
+
+    const content = openRouterData.choices[0].message.content
+
+    // Return the response
     return new Response(
       JSON.stringify({ 
         success: true, 
-        suggestions: suggestions,
+        content: content,
         user_id: user_id,
-        salon_id: salon_id,
-        service_id: service_id,
         generated_at: new Date().toISOString()
       }),
       {

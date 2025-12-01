@@ -799,6 +799,120 @@ class AppApi {
     }
   }
 
+  // Web-compatible method that accepts bytes directly
+  static Future<List<AISuggestionModel>> generateAISuggestionsFromBytes(String userId, Uint8List imageBytes) async {
+    print('🔮 generateAISuggestionsFromBytes called');
+    print('🔮 isMockMode: $isMockMode');
+    print('🔮 useLocal: $useLocal');
+    
+    if (isMockMode) {
+      print('⚠️ Mock mode enabled - returning mock data');
+      await _simulateNetworkDelay();
+      await Future.delayed(const Duration(seconds: 3));
+      final suggestions = _mockAISuggestions.where((suggestion) => suggestion.userId == userId).toList();
+      print('✅ Returning ${suggestions.length} mock suggestions');
+      return suggestions;
+    }
+    
+    // Use OpenRouter Grok v4.1 API via Supabase Edge Function (to avoid CORS issues on web)
+    try {
+      // Use bytes directly (no need to read from file)
+      final base64Image = base64Encode(imageBytes);
+      
+      // Build the prompt
+      final promptText = """Analyze this person's face image carefully and provide the following analysis:
+
+1. FIRST, identify the FACE SHAPE of the person in the image:
+   - Determine the face shape category: Oval, Round, Square, Diamond, Heart, Triangle, or Oblong
+   - Describe the face shape clearly (e.g., "Oval face shape", "Round face shape", "Diamond face shape")
+   - Also note the face angle: front-facing (0 degrees), side profile (90 degrees), three-quarter view, etc.
+
+2. THEN, based on this face shape and angle, suggest 2-3 best haircuts that would suit this person:
+   - For each haircut, provide:
+     * Name of the haircut style
+     * Description
+     * Why this haircut is best for this person based on their face shape and angle
+     * Confidence score (0-1)
+     * Haircut length (short, medium, long)
+     * Style category (classic, modern, trendy, casual, professional)
+   
+3. Return the response in this EXACT JSON format:
+{
+  "face_shape": "Oval/Round/Square/Diamond/Heart/Triangle/Oblong",
+  "face_angle": "description of face angle (e.g., 'Front-facing at 0 degrees' or 'Three-quarter left view at 45 degrees')",
+  "face_angle_degrees": approximate angle number (0-180),
+  "best_haircuts": [
+    {
+      "name": "Haircut name",
+      "description": "Detailed description",
+      "why_best": "Explanation why this haircut is best for this face shape and angle",
+      "confidence": 0.85,
+      "haircut_type": "short/medium/long",
+      "style_category": "modern/classic/trendy/casual"
+    }
+  ]
+}
+
+IMPORTANT: 
+- First identify the face shape (Oval, Round, Square, Diamond, Heart, Triangle, or Oblong)
+- Then determine the face angle
+- Finally, suggest haircuts that complement both the face shape and angle
+- Format your response clearly: "Face Shape: [shape name]. Face Angle: [angle description]. According to this face shape and angle, these haircuts are best for you:""";
+      
+      print('🔮 Calling Supabase Edge Function (OpenRouter proxy)');
+      print('🔮 Image size: ${imageBytes.length} bytes');
+      
+      // Call Supabase Edge Function which will proxy to OpenRouter
+      final response = await _supabase.functions.invoke(
+        'ai_style_suggestion',
+        body: {
+          'user_id': userId,
+          'image_base64': base64Image,
+          'prompt': jsonEncode([
+            {
+              "type": "text",
+              "text": promptText
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": 'data:image/jpeg;base64,$base64Image'
+              }
+            }
+          ]),
+        },
+      );
+      
+      print('🔮 Edge Function Response Status: ${response.status}');
+      
+      if (response.status == 200 && response.data != null) {
+        final responseData = response.data as Map<String, dynamic>;
+        
+        if (responseData['success'] == true && responseData['content'] != null) {
+          final content = responseData['content'] as String;
+          print('🔮 Grok Response Text Length: ${content.length}');
+          print('🔮 Grok Response Preview: ${content.length > 200 ? content.substring(0, 200) : content}...');
+          
+          final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
+          print('✅ Parsed ${suggestions.length} suggestions from Grok response');
+          return suggestions;
+        } else {
+          print('❌ No content in response: $responseData');
+          throw Exception('No content in Edge Function response');
+        }
+      } else {
+        print('❌ Edge Function Error: ${response.status}');
+        print('❌ Response: ${response.data}');
+        throw Exception('Edge Function error: ${response.status} - ${response.data}');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Edge Function Exception: $e');
+      print('❌ Stack trace: $stackTrace');
+      // Don't return mock data - let the error propagate so user sees it
+      rethrow;
+    }
+  }
+
   static Future<List<AISuggestionModel>> generateAISuggestions(String userId, File imageFile) async {
     if (isMockMode) {
       await _simulateNetworkDelay();
@@ -809,52 +923,165 @@ class AppApi {
     
     if (useLocal) {
       try {
-        final apiKey = dotenv.env['GEMINI_API_KEY'];
-        if (apiKey == null || apiKey.isEmpty) {
-          throw Exception('Gemini API key not found in environment variables');
-        }
+        // Use Supabase Edge Function to proxy OpenRouter API (avoids CORS issues)
         final imageBytes = await imageFile.readAsBytes();
         final base64Image = base64Encode(imageBytes);
-        final requestBody = {
-          "contents": [
-            {
-              "parts": [
+        
+        // Build the prompt
+        final promptText = """Analyze this person's face image carefully and provide the following analysis:
+
+1. FIRST, identify the FACE SHAPE of the person in the image:
+   - Determine the face shape category: Oval, Round, Square, Diamond, Heart, Triangle, or Oblong
+   - Describe the face shape clearly (e.g., "Oval face shape", "Round face shape", "Diamond face shape")
+   - Also note the face angle: front-facing (0 degrees), side profile (90 degrees), three-quarter view, etc.
+
+2. THEN, based on this face shape and angle, suggest 2-3 best haircuts that would suit this person:
+   - For each haircut, provide:
+     * Name of the haircut style
+     * Description
+     * Why this haircut is best for this person based on their face shape and angle
+     * Confidence score (0-1)
+     * Haircut length (short, medium, long)
+     * Style category (classic, modern, trendy, casual, professional)
+   
+3. Return the response in this EXACT JSON format:
+{
+  "face_shape": "Oval/Round/Square/Diamond/Heart/Triangle/Oblong",
+  "face_angle": "description of face angle (e.g., 'Front-facing at 0 degrees' or 'Three-quarter left view at 45 degrees')",
+  "face_angle_degrees": approximate angle number (0-180),
+  "best_haircuts": [
+    {
+      "name": "Haircut name",
+      "description": "Detailed description",
+      "why_best": "Explanation why this haircut is best for this face shape and angle",
+      "confidence": 0.85,
+      "haircut_type": "short/medium/long",
+      "style_category": "modern/classic/trendy/casual"
+    }
+  ]
+}
+
+IMPORTANT: 
+- First identify the face shape (Oval, Round, Square, Diamond, Heart, Triangle, or Oblong)
+- Then determine the face angle
+- Finally, suggest haircuts that complement both the face shape and angle
+- Format your response clearly: "Face Shape: [shape name]. Face Angle: [angle description]. According to this face shape and angle, these haircuts are best for you:""";
+        
+        // Try Edge Function first, fallback to direct API call if it fails
+        try {
+          print('🔮 Attempting Supabase Edge Function (OpenRouter proxy)');
+          
+          // Call Supabase Edge Function which will proxy to OpenRouter
+          final response = await _supabase.functions.invoke(
+            'ai_style_suggestion',
+            body: {
+              'user_id': userId,
+              'image_base64': base64Image,
+              'prompt': jsonEncode([
                 {
-                  "text": "Analyze this face image and suggest 3-5 different hairstyles that would suit this person. Consider face shape, hair texture, and personal style. For each suggestion, provide: 1) Hairstyle name, 2) Description, 3) Why it suits them, 4) Confidence score (0-1), 5) Haircut type (short, medium, long), 6) Style category (classic, modern, trendy, casual). Return the response in JSON format with an array of suggestions."
+                  "type": "text",
+                  "text": promptText
                 },
                 {
-                  "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": base64Image
+                  "type": "image_url",
+                  "image_url": {
+                    "url": 'data:image/jpeg;base64,$base64Image'
                   }
                 }
-              ]
+              ]),
+            },
+          );
+          
+          print('🔮 Edge Function Response Status: ${response.status}');
+          
+          if (response.status == 200 && response.data != null) {
+            final responseData = response.data as Map<String, dynamic>;
+            
+            if (responseData['success'] == true && responseData['content'] != null) {
+              final content = responseData['content'] as String;
+              print('🔮 Grok Response: $content');
+              final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
+              return suggestions;
+            } else {
+              throw Exception('No content in Edge Function response');
             }
-          ],
-          "generationConfig": {
-            "temperature": 0.7,
-            "topK": 40,
-            "topP": 0.95,
-            "maxOutputTokens": 2048,
+          } else {
+            throw Exception('Edge Function error: ${response.status} - ${response.data}');
           }
-        };
-        final response = await http.post(
-          Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(requestBody),
-        );
-        if (response.statusCode == 200) {
-          final responseData = jsonDecode(response.body);
-          final content = responseData['candidates'][0]['content']['parts'][0]['text'];
-          final suggestions = _parseGeminiResponse(content, userId);
-          return suggestions;
-        } else {
-          throw Exception('Gemini API error: ${response.statusCode} - ${response.body}');
+        } catch (edgeFunctionError) {
+          print('⚠️ Edge Function failed: $edgeFunctionError');
+          print('🔄 Falling back to direct OpenRouter API call...');
+          
+          // Fallback: Call OpenRouter directly
+          final apiKey = dotenv.env['OPENROUTER_API_KEY'] ?? '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';
+          final imageUrl = 'data:image/jpeg;base64,$base64Image';
+          
+          final requestBody = {
+            "model": "x-ai/grok-4",
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": promptText
+                  },
+                  {
+                    "type": "image_url",
+                    "image_url": {
+                      "url": imageUrl
+                    }
+                  }
+                ]
+              }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2048,
+          };
+          
+          print('🔮 Calling OpenRouter API directly (fallback)');
+          
+          try {
+            final response = await http.post(
+              Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+              headers: {
+                'Authorization': 'Bearer $apiKey',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://menzcut.app',
+                'X-Title': 'MenzCut AI Hair Suggestions',
+              },
+              body: jsonEncode(requestBody),
+            );
+            
+            print('🔮 OpenRouter API Response Status: ${response.statusCode}');
+            
+            if (response.statusCode == 200) {
+              final responseData = jsonDecode(response.body);
+              if (responseData['choices'] != null && responseData['choices'].isNotEmpty) {
+                final choice = responseData['choices'][0];
+                if (choice['message'] != null && choice['message']['content'] != null) {
+                  final content = choice['message']['content'];
+                  print('🔮 Grok Response: $content');
+                  final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
+                  return suggestions;
+                } else {
+                  throw Exception('No content in OpenRouter API response');
+                }
+              } else {
+                throw Exception('No choices in OpenRouter API response');
+              }
+            } else {
+              throw Exception('OpenRouter API error: ${response.statusCode} - ${response.body}');
+            }
+          } catch (directApiError) {
+            print('❌ Direct API call also failed: $directApiError');
+            // If both fail, return mock data as last resort
+            await _simulateNetworkDelay();
+            return _mockAISuggestions.where((suggestion) => suggestion.userId == userId).toList();
+          }
         }
       } catch (e) {
-        print('Gemini API error: $e');
+        print('❌ Error in generateAISuggestions: $e');
         await _simulateNetworkDelay();
         return _mockAISuggestions.where((suggestion) => suggestion.userId == userId).toList();
       }
@@ -996,6 +1223,94 @@ class AppApi {
       print('Error parsing Gemini response: $e');
     }
     return _mockAISuggestions.where((suggestion) => suggestion.userId == userId).toList();
+  }
+
+  // New parser function that handles face angle analysis
+  static List<AISuggestionModel> _parseGeminiResponseWithFaceAngle(String content, String userId) {
+    try {
+      // Extract JSON from response (handles markdown code blocks)
+      String jsonString = content;
+      
+      // Remove markdown code blocks if present
+      if (jsonString.contains('```json')) {
+        final start = jsonString.indexOf('```json') + 7;
+        final end = jsonString.indexOf('```', start);
+        if (end != -1) {
+          jsonString = jsonString.substring(start, end).trim();
+        }
+      } else if (jsonString.contains('```')) {
+        final start = jsonString.indexOf('```') + 3;
+        final end = jsonString.indexOf('```', start);
+        if (end != -1) {
+          jsonString = jsonString.substring(start, end).trim();
+        }
+      }
+      
+      // Find JSON object
+      final jsonStart = jsonString.indexOf('{');
+      final jsonEnd = jsonString.lastIndexOf('}') + 1;
+      
+      if (jsonStart != -1 && jsonEnd > jsonStart) {
+        jsonString = jsonString.substring(jsonStart, jsonEnd);
+        print('🔮 Extracted JSON: ${jsonString.substring(0, jsonString.length > 300 ? 300 : jsonString.length)}...');
+        final Map<String, dynamic> responseData = jsonDecode(jsonString);
+        
+        print('🔮 Response keys: ${responseData.keys.toList()}');
+        
+        final faceShape = responseData['face_shape'] ?? responseData['faceShape'] ?? 'Unknown';
+        final faceAngle = responseData['face_angle'] ?? responseData['faceAngle'] ?? 'Unknown angle';
+        final faceAngleDegrees = responseData['face_angle_degrees'] ?? responseData['faceAngleDegrees'] ?? 0;
+        final List<dynamic> haircuts = responseData['best_haircuts'] ?? responseData['bestHaircuts'] ?? responseData['suggestions'] ?? [];
+        
+        print('🔮 Face Shape: $faceShape');
+        print('🔮 Face Angle: $faceAngle ($faceAngleDegrees°)');
+        print('🔮 Found ${haircuts.length} haircut suggestions');
+        
+        if (haircuts.isEmpty) {
+          print('⚠️ No haircuts found in response. Response structure: $responseData');
+        }
+        
+        final result = haircuts.map((haircut) {
+          return AISuggestionModel(
+            id: const Uuid().v4(),
+            userId: userId,
+            name: haircut['name'] ?? 'AI Suggested Hairstyle',
+            description: haircut['description'] ?? 'AI generated hairstyle suggestion',
+            imageUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
+            confidenceScore: (haircut['confidence'] ?? 0.8).toDouble(),
+            type: SuggestionType.hairstyle,
+            isBooked: false,
+            createdAt: DateTime.now(),
+            tags: _parseTags(haircut),
+            styleDetails: {
+              'face_shape': faceShape.toString(),
+              'face_angle': faceAngle.toString(),
+              'face_angle_degrees': faceAngleDegrees.toString(),
+              'why_best': haircut['why_best'] ?? haircut['why'] ?? 'Best for your face shape and angle',
+              'haircut_type': haircut['haircut_type'] ?? haircut['haircutType'] ?? 'medium',
+              'style_category': haircut['style_category'] ?? haircut['styleCategory'] ?? 'modern',
+              'reasoning': 'Face Shape: $faceShape. Face Angle: $faceAngle. ${haircut['why_best'] ?? haircut['why'] ?? 'This haircut best suits your face structure'}',
+            },
+          );
+        }).toList();
+        
+        print('✅ Parsed ${result.length} suggestions successfully');
+        if (result.isNotEmpty) {
+          final firstSuggestion = result.first;
+          print('📋 Face angle stored: ${firstSuggestion.styleDetails?['face_angle'] ?? 'N/A'}');
+        }
+        return result;
+      } else {
+        print('❌ Could not find JSON object in response');
+        return [];
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error parsing Gemini response with face angle: $e');
+      print('❌ Stack trace: $stackTrace');
+      print('❌ Response content (first 500 chars): ${content.length > 500 ? content.substring(0, 500) : content}');
+      // Return empty list instead of mock data so error is visible
+      return [];
+    }
   }
 
   static SuggestionType _parseSuggestionType(String category) {

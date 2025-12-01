@@ -705,6 +705,25 @@ class SupabaseService {
     return await uploadFile('ai-uploads', path, file);
   }
 
+  // Upload AI image from bytes (for web platform)
+  static Future<String> uploadAIImageFromBytes(String userId, Uint8List imageBytes) async {
+    try {
+      final fileName = 'ai_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = '$userId/$fileName';
+      
+      await _supabase.storage
+          .from('ai-uploads')
+          .uploadBinary(path, imageBytes);
+      
+      return _supabase.storage
+          .from('ai-uploads')
+          .getPublicUrl(path);
+    } catch (e) {
+      print('❌ Error uploading AI image: $e');
+      throw Exception('Failed to upload AI image: ${e.toString()}');
+    }
+  }
+
   // Real-time streams
   static Stream<List<ServiceModel>> get servicesStream {
     return _supabase

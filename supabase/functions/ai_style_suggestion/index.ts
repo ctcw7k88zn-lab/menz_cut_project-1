@@ -33,10 +33,10 @@ serve(async (req) => {
       )
     }
 
-    // Use OpenRouter Grok API
-    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') ?? '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'
+    // Use Google Gemini API
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY') ?? 'AIzaSyBPmUNf0U3trhOFR-yTN2mSVNdEqsrjyYs'
     
-    // Build request body for OpenRouter
+    // Build request body for Gemini
     const imageData = image_base64 || (image_url ? await fetch(image_url).then(r => r.arrayBuffer()).then(b => btoa(String.fromCharCode(...new Uint8Array(b)))) : null)
     
     if (!imageData) {
@@ -49,15 +49,8 @@ serve(async (req) => {
       )
     }
 
-    const openRouterRequest = {
-      model: "x-ai/grok-4",
-      messages: [
-        {
-          role: "user",
-          content: prompt ? JSON.parse(prompt) : [
-            {
-              type: "text",
-              text: `Analyze this person's face image carefully and provide the following analysis:
+    // Build the prompt text
+    const promptText = prompt ? (typeof prompt === 'string' ? prompt : JSON.parse(prompt)[0]?.text || '') : `Analyze this person's face image carefully and provide the following analysis:
 
 1. FIRST, identify the FACE SHAPE of the person in the image:
    - Determine the face shape category: Oval, Round, Square, Diamond, Heart, Triangle, or Oblong
@@ -95,44 +88,48 @@ IMPORTANT:
 - Then determine the face angle
 - Finally, suggest haircuts that complement both the face shape and angle
 - Format your response clearly: "Face Shape: [shape name]. Face Angle: [angle description]. According to this face shape and angle, these haircuts are best for you:"`
+
+    // Build Gemini API request
+    const geminiRequest = {
+      contents: [
+        {
+          parts: [
+            {
+              text: promptText
             },
             {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageData}`
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: imageData
               }
             }
           ]
         }
-      ],
-      temperature: 0.7,
-      max_tokens: 2048,
+      ]
     }
 
-    // Call OpenRouter API
-    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Call Gemini API
+    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://menzcut.app',
-        'X-Title': 'MenzCut AI Hair Suggestions',
+        'X-goog-api-key': geminiApiKey,
       },
-      body: JSON.stringify(openRouterRequest),
+      body: JSON.stringify(geminiRequest),
     })
 
-    if (!openRouterResponse.ok) {
-      const errorText = await openRouterResponse.text()
-      throw new Error(`OpenRouter API error: ${openRouterResponse.status} - ${errorText}`)
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text()
+      throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`)
     }
 
-    const openRouterData = await openRouterResponse.json()
+    const geminiData = await geminiResponse.json()
     
-    if (!openRouterData.choices || !openRouterData.choices[0] || !openRouterData.choices[0].message) {
-      throw new Error('Invalid response from OpenRouter API')
+    if (!geminiData.candidates || !geminiData.candidates[0] || !geminiData.candidates[0].content || !geminiData.candidates[0].content.parts) {
+      throw new Error('Invalid response from Gemini API')
     }
 
-    const content = openRouterData.choices[0].message.content
+    const content = geminiData.candidates[0].content.parts[0].text
 
     // Return the response
     return new Response(

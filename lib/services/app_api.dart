@@ -814,7 +814,7 @@ class AppApi {
       return suggestions;
     }
     
-    // Use OpenRouter Grok v4.1 API via Supabase Edge Function (to avoid CORS issues on web)
+    // Use Gemini API via Supabase Edge Function (to avoid CORS issues on web)
     try {
       // Use bytes directly (no need to read from file)
       final base64Image = base64Encode(imageBytes);
@@ -859,54 +859,107 @@ IMPORTANT:
 - Finally, suggest haircuts that complement both the face shape and angle
 - Format your response clearly: "Face Shape: [shape name]. Face Angle: [angle description]. According to this face shape and angle, these haircuts are best for you:""";
       
-      print('🔮 Calling Supabase Edge Function (OpenRouter proxy)');
+      print('🔮 Calling Supabase Edge Function (Gemini proxy)');
       print('🔮 Image size: ${imageBytes.length} bytes');
       
-      // Call Supabase Edge Function which will proxy to OpenRouter
-      final response = await _supabase.functions.invoke(
-        'ai_style_suggestion',
-        body: {
-          'user_id': userId,
-          'image_base64': base64Image,
-          'prompt': jsonEncode([
-            {
-              "type": "text",
-              "text": promptText
-            },
-            {
-              "type": "image_url",
-              "image_url": {
-                "url": 'data:image/jpeg;base64,$base64Image'
-              }
-            }
-          ]),
-        },
-      );
-      
-      print('🔮 Edge Function Response Status: ${response.status}');
-      
-      if (response.status == 200 && response.data != null) {
-        final responseData = response.data as Map<String, dynamic>;
+      // Try Edge Function first (which uses Gemini API)
+      try {
+        final response = await _supabase.functions.invoke(
+          'ai_style_suggestion',
+          body: {
+            'user_id': userId,
+            'image_base64': base64Image,
+            'prompt': promptText,
+          },
+        );
         
-        if (responseData['success'] == true && responseData['content'] != null) {
-          final content = responseData['content'] as String;
-          print('🔮 Grok Response Text Length: ${content.length}');
-          print('🔮 Grok Response Preview: ${content.length > 200 ? content.substring(0, 200) : content}...');
+        print('🔮 Edge Function Response Status: ${response.status}');
+        
+        if (response.status == 200 && response.data != null) {
+          final responseData = response.data as Map<String, dynamic>;
           
-          final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
-          print('✅ Parsed ${suggestions.length} suggestions from Grok response');
-          return suggestions;
+          if (responseData['success'] == true && responseData['content'] != null) {
+            final content = responseData['content'] as String;
+            print('🔮 Gemini Response Text Length: ${content.length}');
+            print('🔮 Gemini Response Preview: ${content.length > 200 ? content.substring(0, 200) : content}...');
+            
+            final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
+            print('✅ Parsed ${suggestions.length} suggestions from Gemini response');
+            return suggestions;
+          } else {
+            print('❌ No content in response: $responseData');
+            throw Exception('No content in Edge Function response');
+          }
         } else {
-          print('❌ No content in response: $responseData');
-          throw Exception('No content in Edge Function response');
+          print('❌ Edge Function Error: ${response.status}');
+          print('❌ Response: ${response.data}');
+          throw Exception('Edge Function error: ${response.status} - ${response.data}');
         }
-      } else {
-        print('❌ Edge Function Error: ${response.status}');
-        print('❌ Response: ${response.data}');
-        throw Exception('Edge Function error: ${response.status} - ${response.data}');
+      } catch (edgeFunctionError) {
+        print('⚠️ Edge Function failed: $edgeFunctionError');
+        print('🔄 Falling back to direct Gemini API call...');
+        
+        // Fallback: Call Gemini API directly
+        final apiKey = dotenv.env['GEMINI_API_KEY'] ?? 'AIzaSyBPmUNf0U3trhOFR-yTN2mSVNdEqsrjyYs';
+        
+        final requestBody = {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": promptText
+                },
+                {
+                  "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": base64Image
+                  }
+                }
+              ]
+            }
+          ]
+        };
+        
+        print('🔮 Calling Gemini API directly (fallback)');
+        
+        try {
+          final response = await http.post(
+            Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-goog-api-key': apiKey,
+            },
+            body: jsonEncode(requestBody),
+          );
+          
+          print('🔮 Gemini API Response Status: ${response.statusCode}');
+          
+          if (response.statusCode == 200) {
+            final responseData = jsonDecode(response.body);
+            if (responseData['candidates'] != null && responseData['candidates'].isNotEmpty) {
+              final candidate = responseData['candidates'][0];
+              if (candidate['content'] != null && candidate['content']['parts'] != null && candidate['content']['parts'].isNotEmpty) {
+                final content = candidate['content']['parts'][0]['text'];
+                print('🔮 Gemini Response: $content');
+                final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
+                print('✅ Parsed ${suggestions.length} suggestions from Gemini response');
+                return suggestions;
+              } else {
+                throw Exception('No content in Gemini API response');
+              }
+            } else {
+              throw Exception('No candidates in Gemini API response');
+            }
+          } else {
+            throw Exception('Gemini API error: ${response.statusCode} - ${response.body}');
+          }
+        } catch (directApiError) {
+          print('❌ Direct API call also failed: $directApiError');
+          rethrow;
+        }
       }
     } catch (e, stackTrace) {
-      print('❌ Edge Function Exception: $e');
+      print('❌ Exception in generateAISuggestionsFromBytes: $e');
       print('❌ Stack trace: $stackTrace');
       // Don't return mock data - let the error propagate so user sees it
       rethrow;
@@ -1010,68 +1063,60 @@ IMPORTANT:
           }
         } catch (edgeFunctionError) {
           print('⚠️ Edge Function failed: $edgeFunctionError');
-          print('🔄 Falling back to direct OpenRouter API call...');
+          print('🔄 Falling back to direct Gemini API call...');
           
-          // Fallback: Call OpenRouter directly
-          final apiKey = dotenv.env['OPENROUTER_API_KEY'] ?? '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';
-          final imageUrl = 'data:image/jpeg;base64,$base64Image';
+          // Fallback: Call Gemini API directly
+          final apiKey = dotenv.env['GEMINI_API_KEY'] ?? 'AIzaSyBPmUNf0U3trhOFR-yTN2mSVNdEqsrjyYs';
           
           final requestBody = {
-            "model": "x-ai/grok-4",
-            "messages": [
+            "contents": [
               {
-                "role": "user",
-                "content": [
+                "parts": [
                   {
-                    "type": "text",
                     "text": promptText
                   },
                   {
-                    "type": "image_url",
-                    "image_url": {
-                      "url": imageUrl
+                    "inline_data": {
+                      "mime_type": "image/jpeg",
+                      "data": base64Image
                     }
                   }
                 ]
               }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 2048,
+            ]
           };
           
-          print('🔮 Calling OpenRouter API directly (fallback)');
+          print('🔮 Calling Gemini API directly (fallback)');
           
           try {
             final response = await http.post(
-              Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+              Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'),
               headers: {
-                'Authorization': 'Bearer $apiKey',
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://menzcut.app',
-                'X-Title': 'MenzCut AI Hair Suggestions',
+                'X-goog-api-key': apiKey,
               },
               body: jsonEncode(requestBody),
             );
             
-            print('🔮 OpenRouter API Response Status: ${response.statusCode}');
+            print('🔮 Gemini API Response Status: ${response.statusCode}');
             
             if (response.statusCode == 200) {
               final responseData = jsonDecode(response.body);
-              if (responseData['choices'] != null && responseData['choices'].isNotEmpty) {
-                final choice = responseData['choices'][0];
-                if (choice['message'] != null && choice['message']['content'] != null) {
-                  final content = choice['message']['content'];
-                  print('🔮 Grok Response: $content');
+              if (responseData['candidates'] != null && responseData['candidates'].isNotEmpty) {
+                final candidate = responseData['candidates'][0];
+                if (candidate['content'] != null && candidate['content']['parts'] != null && candidate['content']['parts'].isNotEmpty) {
+                  final content = candidate['content']['parts'][0]['text'];
+                  print('🔮 Gemini Response: $content');
                   final suggestions = _parseGeminiResponseWithFaceAngle(content, userId);
                   return suggestions;
                 } else {
-                  throw Exception('No content in OpenRouter API response');
+                  throw Exception('No content in Gemini API response');
                 }
               } else {
-                throw Exception('No choices in OpenRouter API response');
+                throw Exception('No candidates in Gemini API response');
               }
             } else {
-              throw Exception('OpenRouter API error: ${response.statusCode} - ${response.body}');
+              throw Exception('Gemini API error: ${response.statusCode} - ${response.body}');
             }
           } catch (directApiError) {
             print('❌ Direct API call also failed: $directApiError');

@@ -63,6 +63,7 @@ A premium Flutter application for salon appointments with glassmorphism design, 
    APP_ENABLE_MOCK=true
    APP_GOOGLE_MAPS_API_KEY=your_api_key_here
    APP_ENVIRONMENT=development
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 4. **Run the app**

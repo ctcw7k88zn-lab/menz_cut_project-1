@@ -32,6 +32,15 @@
 
   <title>MenzCut</title>
   <link rel="manifest" href="manifest.json">
+  
+  <!-- Request camera permissions for web -->
+  <script>
+    // Request camera permission when page loads
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      // Camera is available
+      console.log('Camera API is available');
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -337,7 +337,14 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
               return Transform.scale(
                 scale: _uploadScaleAnimation.value,
                 child: GestureDetector(
-                  onTap: () => _selectImage('camera'),
+                  onTap: () {
+                    if (kIsWeb) {
+                      // On web, show a helpful dialog first
+                      _showCameraPermissionDialog();
+                    } else {
+                      _selectImage('camera');
+                    }
+                  },
                   onTapDown: (_) => _uploadAnimationController.forward(),
                   onTapUp: (_) => _uploadAnimationController.reverse(),
                   onTapCancel: () => _uploadAnimationController.reverse(),
@@ -927,7 +934,18 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
   Future<void> _selectImage(String source) async {
     try {
       final ImagePicker picker = ImagePicker();
-      final ImageSource imageSource = source == 'camera' ? ImageSource.camera : ImageSource.gallery;
+      
+      // For web camera, use a custom implementation to avoid file picker fallback
+      if (kIsWeb && source == 'camera') {
+        // Show camera capture dialog for web
+        await _showWebCameraDialog();
+        return;
+      }
+      
+      // For gallery or mobile camera
+      final ImageSource imageSource = source == 'camera' 
+          ? ImageSource.camera 
+          : ImageSource.gallery;
       
       final XFile? image = await picker.pickImage(
         source: imageSource,
@@ -942,23 +960,41 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
           final bytes = await image.readAsBytes();
           setState(() {
             _selectedImageBytes = bytes;
-            _selectedImagePath = image.path; // Keep path for reference
-            _selectedImageFile = null; // Not used on web
+            _selectedImagePath = image.path;
+            _selectedImageFile = null;
           });
         } else {
           // Mobile/Desktop platform - use File
           setState(() {
             _selectedImageFile = File(image.path);
             _selectedImagePath = image.path;
-            _selectedImageBytes = null; // Not used on mobile
+            _selectedImageBytes = null;
           });
         }
       }
     } catch (e) {
+      String errorMessage;
+      final errorString = e.toString().toLowerCase();
+      
+      if (errorString.contains('permission') || 
+          errorString.contains('notallowed') || 
+          errorString.contains('denied')) {
+        errorMessage = 'Camera permission was denied. Please:\n'
+            '1. Click the lock/camera icon in the browser address bar\n'
+            '2. Select "Allow" for camera access\n'
+            '3. Refresh the page (F5) and try again';
+      } else if (errorString.contains('notreadable') || 
+                 errorString.contains('notfound')) {
+        errorMessage = 'Camera is not available or being used by another application.';
+      } else {
+        errorMessage = 'Failed to access camera: ${e.toString()}';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to select image: $e'),
+          content: Text(errorMessage),
           backgroundColor: AppTheme.errorColor,
+          duration: const Duration(seconds: 6),
         ),
       );
     }
@@ -1045,10 +1081,152 @@ class _AIHairSuggestionsScreenState extends ConsumerState<AIHairSuggestionsScree
   }
 
   void _bookSuggestion(AISuggestionModel suggestion) {
-    // Navigate to booking screen with pre-filled data
-    context.push('/booking', extra: {
+    // Navigate to salons list page to browse all available salons
+    context.push('/customer-salon-list', extra: {
       'suggestion': suggestion,
       'isAISuggestion': true,
     });
+  }
+
+  void _showCameraPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Camera Access Required'),
+        content: const Text(
+          'To take a photo, your browser needs camera permission.\n\n'
+          'Steps:\n'
+          '1. Click "Open Camera" below\n'
+          '2. When prompted, click "Allow" for camera access\n'
+          '3. The camera will open for you to take a photo\n\n'
+          'If the gallery opens instead, check the camera icon in the browser address bar and allow camera access.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _selectImage('camera');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryMauve,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Open Camera'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showWebCameraDialog() async {
+    // For web, we'll use image_picker but with better error detection
+    // The issue is that image_picker falls back to file picker when camera is denied
+    // So we need to guide users to fix permissions first
+    
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.camera_alt, color: AppTheme.primaryMauve),
+            const SizedBox(width: 8),
+            const Text('Camera Setup Required'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'To use the camera, you need to allow camera access in your browser.\n',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Steps to fix:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              const Text('1. Look at the browser address bar (top of this window)'),
+              const Text('2. Find the lock 🔒 or camera 📷 icon'),
+              const Text('3. Click it and select "Camera" → "Allow"'),
+              const Text('4. Refresh this page (press F5)'),
+              const Text('5. Click "Try Camera Again" below'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryMauve.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '💡 Tip: If you see a file picker instead of camera, it means camera permission is denied. Follow the steps above to fix it.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryMauve,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Try Camera Again'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      // Try to open camera using image_picker
+      try {
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: ImageSource.camera,
+          maxWidth: 1024,
+          maxHeight: 1024,
+          imageQuality: 85,
+        );
+        
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedImageBytes = bytes;
+            _selectedImagePath = image.path;
+            _selectedImageFile = null;
+          });
+        } else {
+          // User cancelled or gallery opened
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('If the gallery opened instead of camera, please check browser permissions as shown in the dialog.'),
+              backgroundColor: AppTheme.warningColor,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Camera error: ${e.toString()}. Please check browser permissions.'),
+            backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 }

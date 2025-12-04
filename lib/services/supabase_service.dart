@@ -1384,6 +1384,7 @@ class SupabaseService {
         'name': data['service']['name'],
         'price': data['service']['price'],
         'duration_minutes': data['service']['duration_minutes'],
+        'image_url': data['service']['image_url'], // Include service image URL
       } : null,
       customerDetails: data['customer'] != null ? {
         'full_name': data['customer']['full_name'],
@@ -1394,6 +1395,8 @@ class SupabaseService {
         'name': data['salon']['name'],
         'address': data['salon']['address'],
         'phone': data['salon']['phone'],
+        'imageUrl': data['salon']['imageUrl'], // Keep for backward compatibility
+        'owner_profile_pic': data['salon']['owner_profile_pic'], // Owner's profile photo
       } : null,
     );
   }
@@ -1607,14 +1610,53 @@ class SupabaseService {
           .from('appointments')
           .select('''
             *,
-            salon:salons(name, address, phone),
-            service:services(name, price, duration_minutes)
+            salon:salons(name, address, phone, owner_id),
+            service:services(name, price, duration_minutes, image_url)
           ''')
           .eq('customer_id', customerId)
           .order('start_at', ascending: false);
       
       print('🔧 SupabaseService: Found ${response.length} appointments for customer');
-      final appointments = response.map((data) => _appointmentFromMap(data)).toList();
+      
+      // Collect unique owner IDs
+      final ownerIds = <String>{};
+      for (final data in response) {
+        if (data['salon'] != null && data['salon']['owner_id'] != null) {
+          ownerIds.add(data['salon']['owner_id'] as String);
+        }
+      }
+      
+      // Fetch all owner profile photos in one query
+      final ownerProfileMap = <String, String?>{};
+      if (ownerIds.isNotEmpty) {
+        try {
+          final ownerProfiles = await _supabase
+              .from('profiles')
+              .select('id, profile_pic')
+              .inFilter('id', ownerIds.toList());
+          
+          for (final profile in ownerProfiles) {
+            ownerProfileMap[profile['id'] as String] = profile['profile_pic'] as String?;
+          }
+          print('✅ Loaded ${ownerProfileMap.length} owner profile photos');
+        } catch (e) {
+          print('⚠️ Could not fetch owner profile pics: $e');
+        }
+      }
+      
+      // Map appointments with owner profile photos
+      final appointments = <AppointmentModel>[];
+      for (final data in response) {
+        if (data['salon'] != null && data['salon']['owner_id'] != null) {
+          final ownerId = data['salon']['owner_id'] as String;
+          final ownerProfilePic = ownerProfileMap[ownerId];
+          if (ownerProfilePic != null) {
+            data['salon']['owner_profile_pic'] = ownerProfilePic;
+          }
+        }
+        appointments.add(_appointmentFromMap(data));
+      }
+      
       print('🔧 SupabaseService: Mapped ${appointments.length} appointments');
       return appointments;
     } catch (e) {

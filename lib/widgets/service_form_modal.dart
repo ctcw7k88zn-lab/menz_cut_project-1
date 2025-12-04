@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import '../config/app_theme.dart';
@@ -69,14 +70,116 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
   }
 
   Future<void> _pickImage() async {
-    // For now, disable image upload on mobile platforms
-    // This can be enhanced later with image_picker package for mobile
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image upload feature coming soon!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      final ImagePicker picker = ImagePicker();
+      
+      // Show options: Camera or Gallery
+      final ImageSource? source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Take Photo'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from Gallery'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cancel),
+                  title: const Text('Cancel'),
+                  onTap: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (source == null) return;
+
+      final XFile? image = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        setState(() {
+          _isUploading = true;
+        });
+
+        try {
+          // Read image bytes
+          final imageBytes = await image.readAsBytes();
+          _selectedImageBytes = imageBytes;
+          _selectedImageFileName = image.name;
+
+          // Upload to Supabase
+          final authState = ref.read(authProvider);
+          if (authState.user == null) {
+            throw Exception('User not authenticated');
+          }
+
+          final imageUrl = await AppApi.uploadServiceImage(
+            authState.user!.id,
+            imageBytes,
+            'service_${DateTime.now().millisecondsSinceEpoch}_${image.name}',
+          );
+
+          setState(() {
+            _selectedImageUrl = imageUrl;
+            _selectedImageBytes = imageBytes;
+            _isUploading = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image uploaded successfully!'),
+                backgroundColor: AppTheme.successColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          print('❌ Error uploading image: $e');
+          setState(() {
+            _isUploading = false;
+            _selectedImageBytes = null;
+            _selectedImageUrl = null;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image: ${e.toString()}'),
+                backgroundColor: AppTheme.errorColor,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _saveService() async {
@@ -92,6 +195,12 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
         throw Exception('User not authenticated');
       }
 
+      // Get the salon ID for this owner
+      final salon = await AppApi.getSalonByOwnerId(authState.user!.id);
+      if (salon == null) {
+        throw Exception('No salon found for this owner. Please create a salon first.');
+      }
+
       final service = ServiceModel(
         id: widget.service?.id ?? const Uuid().v4(),
         name: _nameController.text.trim(),
@@ -100,14 +209,18 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
         durationMinutes: int.parse(_selectedDuration),
         category: _selectedCategory,
         imageUrl: _selectedImageUrl,
-        salonId: authState.user!.id,
+        salonId: salon.id, // Use the actual salon ID, not owner ID
         isActive: true,
         createdAt: widget.service?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
       // Save service via API
-      await AppApi.addService(service);
+      if (widget.service == null) {
+        await AppApi.addService(service);
+      } else {
+        await AppApi.updateService(service);
+      }
       
       widget.onSave(service);
       
@@ -231,27 +344,60 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
                         borderRadius: BorderRadius.circular(12),
               color: AppTheme.primaryMauve.withOpacity(0.05),
             ),
-            child: _selectedImageUrl != null || _selectedImageBytes != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: _selectedImageBytes != null
-                        ? Image.memory(
-                    _selectedImageBytes!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                          )
-                        : Image.network(
-                            _selectedImageUrl!,
-                            fit: BoxFit.cover,
-          width: double.infinity,
-                            height: double.infinity,
-                            errorBuilder: (context, error, stackTrace) {
-                              return _buildImagePlaceholder();
-                            },
-                          ),
+            child: _isUploading
+                ? const Center(
+                    child: CircularProgressIndicator(),
                   )
-                : _buildImagePlaceholder(),
+                : _selectedImageUrl != null || _selectedImageBytes != null
+                    ? Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: _selectedImageBytes != null
+                                ? Image.memory(
+                                    _selectedImageBytes!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  )
+                                : Image.network(
+                                    _selectedImageUrl!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return _buildImagePlaceholder();
+                                    },
+                                  ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedImageUrl = null;
+                                  _selectedImageBytes = null;
+                                  _selectedImageFileName = null;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      )
+                    : _buildImagePlaceholder(),
           ),
         ),
       ],

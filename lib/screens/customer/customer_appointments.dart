@@ -357,7 +357,11 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.network(
-                    appointment.salonDetails?['imageUrl'] ?? 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=100',
+                    // Use service image first, then fall back to owner profile photo, then salon image
+                    appointment.serviceDetails?['image_url'] ?? 
+                    appointment.salonDetails?['owner_profile_pic'] ?? 
+                    appointment.salonDetails?['imageUrl'] ?? 
+                    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=100',
                     width: 60,
                     height: 60,
                     fit: BoxFit.cover,
@@ -370,7 +374,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
-                          Icons.business,
+                          Icons.content_cut,
                           color: AppTheme.primaryMauve,
                         ),
                       );

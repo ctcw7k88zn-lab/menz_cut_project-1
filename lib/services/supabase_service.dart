@@ -224,18 +224,54 @@ class SupabaseService {
                 // Update images from owner profile if available (shop_images takes precedence)
                 if (ownerProfile['shop_images'] != null) {
                   final shopImages = ownerProfile['shop_images'];
-                  if (shopImages is List && shopImages.isNotEmpty) {
-                    // Convert to List<String>
-                    final imageList = shopImages.map((img) => img.toString()).where((img) => img.isNotEmpty && img.startsWith('http')).toList();
-                    if (imageList.isNotEmpty) {
-                      // Use shop_images from owner profile instead of logo_url/banner_url
-                      data['logo_url'] = imageList.first;
-                      if (imageList.length > 1) {
-                        data['banner_url'] = imageList[1];
+                  print('   📸 Raw shop_images data: $shopImages (type: ${shopImages.runtimeType})');
+                  
+                  List<String> imageList = [];
+                  
+                  // Handle different formats: List, JSON string, or single string
+                  if (shopImages is List) {
+                    print('   📸 shop_images is a List with ${shopImages.length} items');
+                    imageList = shopImages
+                        .map((img) => img.toString().trim())
+                        .where((img) => img.isNotEmpty && (img.startsWith('http') || img.startsWith('https')))
+                        .toList();
+                  } else if (shopImages is String) {
+                    print('   📸 shop_images is a String, attempting to parse...');
+                    try {
+                      // Try to parse as JSON array
+                      final parsed = jsonDecode(shopImages);
+                      if (parsed is List) {
+                        imageList = parsed
+                            .map((img) => img.toString().trim())
+                            .where((img) => img.isNotEmpty && (img.startsWith('http') || img.startsWith('https')))
+                            .toList();
+                      } else if (parsed is String && parsed.startsWith('http')) {
+                        imageList = [parsed];
                       }
-                      print('✅ Loaded ${imageList.length} shop images from owner profile for salon: ${data['name']}');
+                    } catch (e) {
+                      // If not JSON, treat as single URL
+                      if (shopImages.trim().isNotEmpty && (shopImages.startsWith('http') || shopImages.startsWith('https'))) {
+                        imageList = [shopImages.trim()];
+                      }
                     }
                   }
+                  
+                  if (imageList.isNotEmpty) {
+                    print('   ✅ Parsed ${imageList.length} valid image URLs');
+                    // Use shop_images from owner profile instead of logo_url/banner_url
+                    data['logo_url'] = imageList.first;
+                    if (imageList.length > 1) {
+                      data['banner_url'] = imageList[1];
+                    }
+                    // Also store all images for potential use
+                    data['shop_images'] = imageList;
+                    print('✅ Loaded ${imageList.length} shop images from owner profile for salon: ${data['name']}');
+                    print('   First image URL: ${imageList.first}');
+                  } else {
+                    print('   ⚠️ No valid image URLs found in shop_images');
+                  }
+                } else {
+                  print('   ⚠️ No shop_images in owner profile');
                 }
               } else {
                 print('⚠️ Owner profile not found for salon: ${data['name']} (owner: $ownerId)');
@@ -1163,13 +1199,31 @@ class SupabaseService {
 
   static SalonModel _salonFromMap(Map<String, dynamic> data) {
     // Safely handle imageUrls
+    // Priority: shop_images (from owner profile) > logo_url/banner_url (from salons table)
     List<String> imageUrls = [];
-    if (data['logo_url'] != null && data['logo_url'].toString().isNotEmpty) {
-      imageUrls.add(data['logo_url'].toString());
+    
+    // First, check if shop_images were loaded from owner profile
+    if (data['shop_images'] != null && data['shop_images'] is List) {
+      final shopImages = data['shop_images'] as List;
+      imageUrls = shopImages
+          .map((img) => img.toString().trim())
+          .where((img) => img.isNotEmpty && (img.startsWith('http') || img.startsWith('https')))
+          .toList();
+      print('   📸 Using shop_images from owner profile: ${imageUrls.length} images');
     }
-    if (data['banner_url'] != null && data['banner_url'].toString().isNotEmpty) {
-      imageUrls.add(data['banner_url'].toString());
+    
+    // Fall back to logo_url and banner_url if shop_images not available
+    if (imageUrls.isEmpty) {
+      if (data['logo_url'] != null && data['logo_url'].toString().isNotEmpty) {
+        imageUrls.add(data['logo_url'].toString());
+      }
+      if (data['banner_url'] != null && data['banner_url'].toString().isNotEmpty) {
+        imageUrls.add(data['banner_url'].toString());
+      }
+      print('   📸 Using logo_url/banner_url from salons table: ${imageUrls.length} images');
     }
+    
+    print('   📸 Final imageUrls count: ${imageUrls.length}');
 
     // Safely handle openingHours
     // Opening hours can be in two formats:

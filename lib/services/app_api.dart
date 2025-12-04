@@ -171,7 +171,31 @@ class AppApi {
       await _simulateNetworkDelay();
       return await LocalDataService.getAllSalons();
     } else {
-      return SupabaseService.getSalons();
+      final salons = await SupabaseService.getSalons();
+      
+      // Calculate actual ratings from reviews for each salon (same as getSalonById)
+      final salonsWithRatings = await Future.wait(
+        salons.map((salon) async {
+          try {
+            final reviews = await SupabaseService.getReviewsForSalon(salon.id);
+            if (reviews.isNotEmpty) {
+              final totalRating = reviews.fold<int>(0, (sum, review) => sum + review.rating);
+              final actualRating = totalRating / reviews.length;
+              
+              // Return salon with updated rating and review count
+              return salon.copyWith(
+                rating: actualRating,
+                reviewCount: reviews.length,
+              );
+            }
+          } catch (e) {
+            print('Error calculating salon rating for ${salon.name}: $e');
+          }
+          return salon;
+        }),
+      );
+      
+      return salonsWithRatings;
     }
   }
 

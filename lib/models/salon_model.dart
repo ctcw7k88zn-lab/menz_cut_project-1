@@ -197,18 +197,71 @@ class SalonModel extends HiveObject {
     final dayName = _getDayName(now.weekday);
     final hours = openingHours[dayName];
     
-    if (hours == null || hours == 'Closed') return false;
+    // Debug logging
+    print('🕐 Checking if $name is open:');
+    print('   Current day: $dayName');
+    print('   Current time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}');
+    print('   Opening hours for $dayName: $hours');
+    print('   All opening hours: $openingHours');
     
-    final timeParts = hours.split(' - ');
-    if (timeParts.length != 2) return false;
+    if (hours == null || hours.isEmpty || hours.toLowerCase() == 'closed') {
+      print('   ❌ No hours found or closed for $dayName');
+      return false;
+    }
+    
+    // Try different formats: "9:00-18:00", "9:00 - 18:00", "11:00 AM - 8:00 PM"
+    String? openTimeStr;
+    String? closeTimeStr;
+    
+    // Try splitting by " - " (with spaces)
+    if (hours.contains(' - ')) {
+      final parts = hours.split(' - ');
+      if (parts.length == 2) {
+        openTimeStr = parts[0].trim();
+        closeTimeStr = parts[1].trim();
+      }
+    }
+    // Try splitting by "-" (without spaces)
+    else if (hours.contains('-')) {
+      final parts = hours.split('-');
+      if (parts.length == 2) {
+        openTimeStr = parts[0].trim();
+        closeTimeStr = parts[1].trim();
+      }
+    }
+    
+    print('   Parsed open time: $openTimeStr, close time: $closeTimeStr');
+    
+    if (openTimeStr == null || closeTimeStr == null) {
+      print('   ❌ Could not parse time format');
+      return false;
+    }
     
     try {
-      final openTime = _parseTime(timeParts[0]);
-      final closeTime = _parseTime(timeParts[1]);
+      final openTime = _parseTime(openTimeStr);
+      final closeTime = _parseTime(closeTimeStr);
       final currentTime = now.hour * 60 + now.minute;
       
-      return currentTime >= openTime && currentTime <= closeTime;
+      print('   Open time (minutes): $openTime, Close time (minutes): $closeTime');
+      print('   Current time (minutes): $currentTime');
+      
+      // Handle case where closing time is next day (e.g., 11 PM - 2 AM)
+      bool isOpen;
+      if (closeTime < openTime) {
+        // Salon closes after midnight (e.g., 11 PM - 2 AM)
+        isOpen = currentTime >= openTime || currentTime <= closeTime;
+        print('   ⏰ Salon closes after midnight (${openTime}min - ${closeTime}min next day)');
+      } else {
+        // Normal case: same day closing
+        isOpen = currentTime >= openTime && currentTime <= closeTime;
+      }
+      
+      print('   Result: ${isOpen ? "✅ OPEN" : "❌ CLOSED"}');
+      
+      return isOpen;
     } catch (e) {
+      // If parsing fails, assume closed
+      print('   ❌ Error parsing time: $e');
       return false;
     }
   }
@@ -219,7 +272,50 @@ class SalonModel extends HiveObject {
   }
   
   int _parseTime(String time) {
+    // Remove any extra whitespace
+    time = time.trim();
+    
+    // Handle AM/PM format: "11:00 AM" or "8:00 PM"
+    bool isPM = false;
+    if (time.toUpperCase().contains('PM')) {
+      isPM = true;
+      time = time.replaceAll(RegExp(r'[Pp][Mm]'), '').trim();
+    } else if (time.toUpperCase().contains('AM')) {
+      time = time.replaceAll(RegExp(r'[Aa][Mm]'), '').trim();
+    }
+    
+    // Parse time in format "HH:MM" or "H:MM"
     final parts = time.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    if (parts.length != 2) {
+      throw FormatException('Invalid time format: $time');
+    }
+    
+    int hour = int.parse(parts[0].trim());
+    int minute = int.parse(parts[1].trim());
+    
+    // Validate hour and minute ranges
+    if (hour < 0 || hour > 23) {
+      throw FormatException('Invalid hour: $hour');
+    }
+    if (minute < 0 || minute > 59) {
+      throw FormatException('Invalid minute: $minute');
+    }
+    
+    // Convert to 24-hour format if PM
+    if (isPM && hour != 12) {
+      hour += 12;
+    } else if (!isPM && hour == 12) {
+      hour = 0;
+    }
+    
+    // Ensure hour is in valid range after conversion
+    if (hour < 0 || hour > 23) {
+      throw FormatException('Invalid hour after conversion: $hour');
+    }
+    
+    final totalMinutes = hour * 60 + minute;
+    print('      Parsed "$time" (isPM: $isPM) -> $hour:$minute (${totalMinutes} minutes)');
+    
+    return totalMinutes;
   }
 }

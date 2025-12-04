@@ -34,6 +34,28 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Customize error widget to suppress image loading error text
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    // If it's an image loading error, show a simple placeholder instead of error text
+    if (details.exception.toString().contains('HTTP') || 
+        details.exception.toString().contains('image') ||
+        details.exception.toString().contains('404') ||
+        details.exception.toString().contains('statusCode')) {
+      return Container(
+        color: Colors.grey[200],
+        child: const Center(
+          child: Icon(
+            Icons.image_not_supported,
+            color: Colors.grey,
+            size: 32,
+          ),
+        ),
+      );
+    }
+    // For other errors, show default error widget
+    return ErrorWidget(details.exception);
+  };
+  
   try {
     // Load environment variables
     try {

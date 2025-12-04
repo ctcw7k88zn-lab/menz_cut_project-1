@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/salon_model.dart';
@@ -185,7 +186,57 @@ class SupabaseService {
       }
       
       final response = await query;
-      return response.map((data) => _salonFromMap(data)).toList();
+      
+      // Fetch opening hours and address from owner profiles for each salon
+      final salonsWithHours = await Future.wait(
+        response.map((data) async {
+          try {
+            // Get owner's profile to fetch opening hours and address
+            final ownerId = data['owner_id']?.toString();
+            if (ownerId != null && ownerId.isNotEmpty) {
+              print('🔍 Fetching owner profile data for salon "${data['name']}" (owner: $ownerId)');
+              
+              final ownerProfile = await _supabase
+                  .from('profiles')
+                  .select('opening_hours, shop_address')
+                  .eq('id', ownerId)
+                  .maybeSingle();
+              
+              if (ownerProfile != null) {
+                // Update opening hours from owner profile
+                if (ownerProfile['opening_hours'] != null) {
+                  data['opening_hours'] = ownerProfile['opening_hours'];
+                  print('✅ Loaded opening hours from owner profile for salon: ${data['name']}');
+                  print('   Opening hours data: ${ownerProfile['opening_hours']}');
+                } else {
+                  print('⚠️ No opening hours in owner profile for salon: ${data['name']}');
+                }
+                
+                // Update address from owner profile if available (takes precedence over salon table address)
+                if (ownerProfile['shop_address'] != null && ownerProfile['shop_address'].toString().trim().isNotEmpty) {
+                  data['address'] = ownerProfile['shop_address'].toString();
+                  print('✅ Loaded address from owner profile for salon: ${data['name']}');
+                  print('   Address: ${ownerProfile['shop_address']}');
+                } else {
+                  print('⚠️ No shop_address in owner profile, using salon table address');
+                }
+              } else {
+                print('⚠️ Owner profile not found for salon: ${data['name']} (owner: $ownerId)');
+              }
+            } else {
+              print('⚠️ Salon "${data['name']}" has no owner_id');
+            }
+          } catch (e, stackTrace) {
+            print('❌ Error fetching owner profile data for salon ${data['name']}: $e');
+            print('   Stack trace: $stackTrace');
+            // Continue with salon data even if profile fetch fails
+          }
+          
+          return _salonFromMap(data);
+        }),
+      );
+      
+      return salonsWithHours;
     } catch (e) {
       throw Exception('Failed to fetch salons: ${e.toString()}');
     }
@@ -199,7 +250,44 @@ class SupabaseService {
           .eq('id', id)
           .single();
       
-      return _salonFromMap(response);
+      // Fetch opening hours and address from owner profile (same as getSalons)
+      final data = response;
+      try {
+        final ownerId = data['owner_id']?.toString();
+        if (ownerId != null && ownerId.isNotEmpty) {
+          print('🔍 [getSalonById] Fetching owner profile data for salon "${data['name']}" (owner: $ownerId)');
+          
+          final ownerProfile = await _supabase
+              .from('profiles')
+              .select('opening_hours, shop_address')
+              .eq('id', ownerId)
+              .maybeSingle();
+          
+          if (ownerProfile != null) {
+            // Update opening hours from owner profile
+            if (ownerProfile['opening_hours'] != null) {
+              data['opening_hours'] = ownerProfile['opening_hours'];
+              print('✅ [getSalonById] Loaded opening hours from owner profile for salon: ${data['name']}');
+            } else {
+              print('⚠️ [getSalonById] No opening hours in owner profile for salon: ${data['name']}');
+            }
+            
+            // Update address from owner profile if available
+            if (ownerProfile['shop_address'] != null && ownerProfile['shop_address'].toString().trim().isNotEmpty) {
+              data['address'] = ownerProfile['shop_address'].toString();
+              print('✅ [getSalonById] Loaded address from owner profile for salon: ${data['name']}');
+              print('   Address: ${ownerProfile['shop_address']}');
+            }
+          } else {
+            print('⚠️ [getSalonById] Owner profile not found for salon: ${data['name']}');
+          }
+        }
+      } catch (e) {
+        print('❌ [getSalonById] Error fetching owner profile data: $e');
+        // Continue even if profile fetch fails
+      }
+      
+      return _salonFromMap(data);
     } catch (e) {
       throw Exception('Failed to fetch salon: ${e.toString()}');
     }
@@ -1067,28 +1155,134 @@ class SupabaseService {
     }
 
     // Safely handle openingHours
-    Map<String, String> openingHours = {'Monday': '9:00-18:00'};
+    // Opening hours can be in two formats:
+    // 1. Simple format: {'Monday': '9:00-18:00', 'Tuesday': '9:00-18:00'}
+    // 2. Owner format: {'Monday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true}}
+    // Default: All days open 9 AM to 9 PM (wider hours to be more inclusive)
+    Map<String, String> openingHours = {
+      'Monday': '9:00-21:00',
+      'Tuesday': '9:00-21:00',
+      'Wednesday': '9:00-21:00',
+      'Thursday': '9:00-21:00',
+      'Friday': '9:00-21:00',
+      'Saturday': '9:00-21:00',
+      'Sunday': '9:00-21:00',
+    };
+    print('📅 Parsing opening hours for salon: ${data['name']}');
+    print('   Raw opening_hours data: ${data['opening_hours']}');
+    print('   Raw opening_hours type: ${data['opening_hours'].runtimeType}');
+    
     if (data['opening_hours'] != null) {
       try {
-        if (data['opening_hours'] is Map) {
-          openingHours = Map<String, String>.from(data['opening_hours'] as Map);
+        // Handle JSON string format (if stored as string in database)
+        dynamic hoursData = data['opening_hours'];
+        if (hoursData is String) {
+          try {
+            hoursData = jsonDecode(hoursData);
+            print('   📝 Parsed JSON string to object');
+          } catch (e) {
+            print('   ⚠️ Could not parse JSON string: $e');
+            hoursData = null;
+          }
         }
-      } catch (e) {
-        print('Error parsing opening_hours: $e');
+        
+        if (hoursData is Map) {
+          final rawHours = hoursData;
+          print('   📊 Raw hours map keys: ${rawHours.keys.toList()}');
+          
+          // Only clear default if we have actual data to process
+          if (rawHours.isNotEmpty) {
+            // Start with empty map, we'll populate it
+            final parsedHours = <String, String>{};
+            
+            rawHours.forEach((day, value) {
+              final dayStr = day.toString();
+              print('   🔍 Processing $dayStr: $value (type: ${value.runtimeType})');
+              
+              if (value is Map) {
+                // Owner format: {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true}
+                final dayData = Map<String, dynamic>.from(value);
+                final isOpen = dayData['isOpen'] ?? false;
+                print('      isOpen: $isOpen');
+                
+                if (isOpen) {
+                  final openTime = dayData['open']?.toString().trim() ?? '';
+                  final closeTime = dayData['close']?.toString().trim() ?? '';
+                  print('      openTime: "$openTime", closeTime: "$closeTime"');
+                  
+                  if (openTime.isNotEmpty && closeTime.isNotEmpty) {
+                    parsedHours[dayStr] = '$openTime - $closeTime';
+                    print('      ✅ $dayStr: $openTime - $closeTime');
+                  } else {
+                    parsedHours[dayStr] = 'Closed';
+                    print('      ❌ $dayStr: Empty times, marked as Closed');
+                  }
+                } else {
+                  parsedHours[dayStr] = 'Closed';
+                  print('      ❌ $dayStr: isOpen=false, marked as Closed');
+                }
+              } else if (value is String) {
+                // Simple format: '9:00-18:00' or '9:00 - 18:00' or 'Closed'
+                if (value.toLowerCase() == 'closed') {
+                  parsedHours[dayStr] = 'Closed';
+                  print('      ❌ $dayStr: Closed (string)');
+                } else {
+                  parsedHours[dayStr] = value;
+                  print('      ✅ $dayStr: $value (simple format)');
+                }
+              } else {
+                print('      ⚠️ $dayStr: Unknown format, using default');
+                // Don't add to parsedHours, will use default
+              }
+            });
+            
+            // Only update openingHours if we parsed at least one day
+            if (parsedHours.isNotEmpty) {
+              // Merge parsed hours with defaults (parsed hours take precedence)
+              openingHours = {...openingHours, ...parsedHours};
+              print('   ✅ Successfully parsed ${parsedHours.length} days');
+            } else {
+              print('   ⚠️ No valid hours found after processing, keeping default');
+            }
+          } else {
+            print('   ⚠️ opening_hours map is empty, using default');
+          }
+        } else {
+          print('   ⚠️ opening_hours is not a Map (type: ${hoursData.runtimeType}), using default');
+        }
+      } catch (e, stackTrace) {
+        print('   ❌ Error parsing opening_hours: $e');
+        print('   Stack trace: $stackTrace');
+        // Keep the default we set at the top
       }
+    } else {
+      print('   ⚠️ No opening_hours data found, using default');
     }
+    
+    print('   📋 Final opening hours: $openingHours');
+
+    // Debug: Log all data being mapped
+    final address = data['address']?.toString() ?? '';
+    final rating = (data['rating'] ?? 0.0).toDouble();
+    final reviewCount = data['review_count'] ?? 0;
+    
+    print('   📍 Mapping salon data for: ${data['name']}');
+    print('      Address: "$address"');
+    print('      Rating: $rating');
+    print('      Review Count: $reviewCount');
+    print('      Image URLs: ${imageUrls.length} images');
 
     return SalonModel(
       id: data['id'].toString(),
       ownerId: data['owner_id'].toString(),
       name: data['name'].toString(),
       description: data['description']?.toString() ?? '',
-      address: data['address']?.toString() ?? '',
+      address: address,
       phone: data['phone']?.toString() ?? '',
       email: data['email']?.toString() ?? '',
       imageUrls: imageUrls,
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      reviewCount: data['review_count'] ?? 0,
+      rating: rating,
+      reviewCount: reviewCount,
       categories: ['Haircut'], // Default category since salons table doesn't have categories field
       openingHours: openingHours,
       latitude: data['latitude']?.toDouble() ?? 0.0,

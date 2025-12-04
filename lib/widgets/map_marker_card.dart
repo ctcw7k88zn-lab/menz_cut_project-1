@@ -153,7 +153,7 @@ class MapMarkerCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'From \$${salon.averagePrice?.toStringAsFixed(0) ?? '0'}',
+                      'From ${AppTheme.formatCurrencyCompact(salon.averagePrice ?? 0)}',
                       style: AppTheme.bodyMedium.copyWith(
                         fontWeight: FontWeight.w600,
                         color: AppTheme.primaryMauve,

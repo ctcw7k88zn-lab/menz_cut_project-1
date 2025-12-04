@@ -470,7 +470,7 @@ class _ServiceFormModalState extends ConsumerState<ServiceFormModal> {
     return TextFormField(
       controller: _priceController,
       decoration: InputDecoration(
-        labelText: 'Price (\$)',
+        labelText: 'Price (Rs.)',
         hintText: '0.00',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

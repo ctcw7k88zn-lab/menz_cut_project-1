@@ -305,14 +305,14 @@ class _PriceRangeSliderState extends State<PriceRangeSlider> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '\$${_currentMinPrice.toInt()}',
+              '${AppTheme.formatCurrencyCompact(_currentMinPrice.toDouble())}',
               style: AppTheme.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.primaryMauve,
               ),
             ),
             Text(
-              '\$${_currentMaxPrice.toInt()}',
+              '${AppTheme.formatCurrencyCompact(_currentMaxPrice.toDouble())}',
               style: AppTheme.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.primaryMauve,

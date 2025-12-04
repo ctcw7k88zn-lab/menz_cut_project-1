@@ -731,7 +731,7 @@ class _SalonDetailScreenState extends ConsumerState<SalonDetailScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Duration: ${_selectedService!.durationMinutes} minutes • Price: \$${_selectedService!.price.toStringAsFixed(2)}',
+                        'Duration: ${_selectedService!.durationMinutes} minutes • Price: ${AppTheme.formatCurrency(_selectedService!.price, decimals: 2)}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppTheme.textPrimary,

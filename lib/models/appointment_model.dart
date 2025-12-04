@@ -214,7 +214,7 @@ class AppointmentModel extends HiveObject {
     );
   }
 
-  String get formattedAmount => '\$${totalAmount.toStringAsFixed(2)}';
+  String get formattedAmount => 'Rs. ${totalAmount.toStringAsFixed(2)}';
   String get formattedScheduledDate => _formatDate(startAt);
   String get formattedScheduledTime => _formatTime(startAt);
   bool get isUpcoming => startAt.isAfter(DateTime.now()) && 

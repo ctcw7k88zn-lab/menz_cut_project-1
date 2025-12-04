@@ -138,7 +138,7 @@ class HomeDashboardNotifier extends StateNotifier<AsyncValue<HomeDashboardData>>
         weeklyStats: weeklyStats,
       );
 
-      print('🏠 Home Dashboard: All-Time - $allTimeAppointments appointments, \$${allTimeEarnings.toStringAsFixed(0)} earnings, $allTimeCustomersServed customers served');
+      print('🏠 Home Dashboard: All-Time - $allTimeAppointments appointments, Rs. ${allTimeEarnings.toStringAsFixed(0)} earnings, $allTimeCustomersServed customers served');
       
       state = AsyncValue.data(dashboardData);
     } catch (e) {

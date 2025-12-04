@@ -444,7 +444,7 @@ class _CustomerAppointmentsScreenState extends ConsumerState<CustomerAppointment
                       ),
                       const Spacer(),
                       Text(
-                        '\$${(appointment.price ?? 0).toStringAsFixed(2)}',
+                        AppTheme.formatCurrency(appointment.price ?? 0, decimals: 2),
                         style: AppTheme.bodyMedium.copyWith(
                           fontWeight: FontWeight.bold,
                           color: AppTheme.primaryMauve,

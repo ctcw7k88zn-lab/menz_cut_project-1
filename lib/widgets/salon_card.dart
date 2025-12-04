@@ -269,7 +269,7 @@ class SalonCard extends StatelessWidget {
               if (salon.averagePrice != null) ...[
                 const Spacer(),
                 Text(
-                  'From \$${salon.averagePrice!.toStringAsFixed(0)}',
+                  'From ${AppTheme.formatCurrencyCompact(salon.averagePrice!)}',
                   style: AppTheme.bodySmall.copyWith(
                     color: AppTheme.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -411,7 +411,7 @@ class SalonListCard extends StatelessWidget {
                     if (salon.averagePrice != null) ...[
                       const Spacer(),
                       Text(
-                        'From \$${salon.averagePrice!.toStringAsFixed(0)}',
+                        'From ${AppTheme.formatCurrencyCompact(salon.averagePrice!)}',
                         style: AppTheme.bodySmall.copyWith(
                           color: AppTheme.textSecondary,
                           fontWeight: FontWeight.w600,

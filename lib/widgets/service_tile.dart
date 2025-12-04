@@ -94,7 +94,7 @@ class ServiceTile extends StatelessWidget {
               ),
             ),
             Text(
-              '\$${service.price.toStringAsFixed(0)}',
+              AppTheme.formatCurrencyCompact(service.price),
               style: AppTheme.headingSmall.copyWith(
                 color: AppTheme.primaryMauve,
                 fontWeight: FontWeight.bold,
@@ -312,7 +312,7 @@ class ServiceListTile extends StatelessWidget {
                     ),
                     const SizedBox(width: AppTheme.spacing8),
                     Text(
-                      '\$${service.price.toStringAsFixed(0)}',
+                      AppTheme.formatCurrencyCompact(service.price),
                       style: AppTheme.bodyMedium.copyWith(
                         color: AppTheme.primaryMauve,
                         fontWeight: FontWeight.bold,

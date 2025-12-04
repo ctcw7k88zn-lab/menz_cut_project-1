@@ -434,7 +434,7 @@ class _OwnerServicesScreenState extends ConsumerState<OwnerServicesScreen>
                     ),
                     const SizedBox(height: 8),
                       Text(
-                        '\$${appointment.totalAmount.toStringAsFixed(0)}',
+                        AppTheme.formatCurrencyCompact(appointment.totalAmount),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

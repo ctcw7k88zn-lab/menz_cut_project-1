@@ -15,7 +15,7 @@ class PaymentModel {
     required this.id,
     required this.appointmentId,
     required this.amount,
-    this.currency = 'USD',
+    this.currency = 'PKR',
     required this.method,
     this.status = PaymentStatus.pending,
     this.transactionId,
@@ -66,7 +66,7 @@ class PaymentModel {
       id: map['id'] ?? '',
       appointmentId: map['appointment_id'] ?? '',
       amount: (map['amount'] ?? 0.0).toDouble(),
-      currency: map['currency'] ?? 'USD',
+      currency: map['currency'] ?? 'PKR',
       method: map['method'] ?? '',
       status: PaymentStatus.values.firstWhere(
         (e) => e.name == map['status'],

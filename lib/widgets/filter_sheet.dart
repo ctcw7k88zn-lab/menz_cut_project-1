@@ -204,8 +204,8 @@ class _FilterSheetState extends State<FilterSheet>
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text('\$${_minPrice.toInt()}'),
-                                    Text('\$${_maxPrice.toInt()}'),
+                                    Text(AppTheme.formatCurrencyCompact(_minPrice.toDouble())),
+                                    Text(AppTheme.formatCurrencyCompact(_maxPrice.toDouble())),
                                   ],
                                 ),
                                 RangeSlider(

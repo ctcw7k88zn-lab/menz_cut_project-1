@@ -178,7 +178,7 @@ class AnalyticsNotifier extends StateNotifier<AsyncValue<AnalyticsData>> {
     print('   Period appointments: ${periodAppointments.length}');
     print('   Period appointments details:');
     for (final apt in periodAppointments) {
-      print('     - ${apt.startAt}: ${apt.status} - \$${apt.totalAmount}');
+      print('     - ${apt.startAt}: ${apt.status} - Rs. ${apt.totalAmount}');
     }
     
     if (periodAppointments.isEmpty) {

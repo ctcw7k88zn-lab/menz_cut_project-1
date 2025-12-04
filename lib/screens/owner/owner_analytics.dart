@@ -283,7 +283,7 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
               children: [
                 Expanded(child: _buildStatCard(
                   '${analyticsData.dateRange.label} Revenue', 
-                  '\$${analyticsData.periodRevenue.toStringAsFixed(0)}', 
+                  AppTheme.formatCurrencyCompact(analyticsData.periodRevenue), 
                   Icons.attach_money, 
                   Colors.green
                 )),
@@ -494,7 +494,7 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         return Text(
-                          '\$${value.toInt()}',
+                          AppTheme.formatCurrencyCompact(value),
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         );
                       },
@@ -1037,7 +1037,7 @@ class _OwnerAnalyticsScreenState extends ConsumerState<OwnerAnalyticsScreen>
                                 Icon(Icons.attach_money, size: 16, color: Colors.green.shade600),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '\$${(service['revenue'] as double).toStringAsFixed(0)}',
+                                  AppTheme.formatCurrencyCompact((service['revenue'] as double)),
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,

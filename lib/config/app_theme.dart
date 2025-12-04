@@ -81,6 +81,19 @@ class AppTheme {
     return desktop;
   }
 
+  // Currency formatting for Pakistani Rupees
+  static String formatCurrency(double amount, {int decimals = 0}) {
+    if (decimals == 0) {
+      return 'Rs. ${amount.toStringAsFixed(0)}';
+    } else {
+      return 'Rs. ${amount.toStringAsFixed(decimals)}';
+    }
+  }
+  
+  static String formatCurrencyCompact(double amount) {
+    return 'Rs. ${amount.toStringAsFixed(0)}';
+  }
+
   // Additional Gradients
 
   static const LinearGradient glassGradient = LinearGradient(

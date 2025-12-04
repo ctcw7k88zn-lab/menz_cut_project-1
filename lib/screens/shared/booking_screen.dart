@@ -417,7 +417,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                             Column(
                               children: [
                                 Text(
-                                  '\$${service.price.toStringAsFixed(0)}',
+                                  AppTheme.formatCurrencyCompact(service.price),
                                   style: AppTheme.heading3.copyWith(
                                     color: AppTheme.primaryMauve,
                                   ),
@@ -885,12 +885,12 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                 _buildSummaryRow('Stylist', _selectedStaff ?? 'Any available'),
                 _buildSummaryRow('Duration', '${_selectedService!.durationMinutes} minutes'),
                 const Divider(),
-                _buildSummaryRow('Price', '\$${_selectedService!.price.toStringAsFixed(2)}'),
+                _buildSummaryRow('Price', AppTheme.formatCurrency(_selectedService!.price, decimals: 2)),
                 if (discount > 0) ...[
-                  _buildSummaryRow('Discount', '-\$${discount.toStringAsFixed(2)}'),
+                  _buildSummaryRow('Discount', '-${AppTheme.formatCurrency(discount, decimals: 2)}'),
                   const Divider(),
                 ],
-                _buildSummaryRow('Total', '\$${finalPrice.toStringAsFixed(2)}', isTotal: true),
+                _buildSummaryRow('Total', AppTheme.formatCurrency(finalPrice, decimals: 2), isTotal: true),
               ],
             ),
           ),

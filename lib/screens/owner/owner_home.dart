@@ -383,7 +383,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
             const SizedBox(width: 12),
             Expanded(child: _buildStatCard(
               'All-Time Earnings', 
-              '\$${dashboardData.todayEarnings.toStringAsFixed(0)}', 
+              AppTheme.formatCurrencyCompact(dashboardData.todayEarnings), 
               Icons.attach_money, 
               Colors.green
             )),
@@ -613,7 +613,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                     Icon(Icons.attach_money, size: 14, color: Colors.grey.shade500),
                     const SizedBox(width: 4),
                     Text(
-                      '\$${appointment.totalAmount.toStringAsFixed(0)}',
+                      AppTheme.formatCurrencyCompact(appointment.totalAmount),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -974,7 +974,7 @@ class _OwnerHomeScreenState extends ConsumerState<OwnerHomeScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '\$${service.price.toStringAsFixed(0)}',
+                      AppTheme.formatCurrencyCompact(service.price),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,

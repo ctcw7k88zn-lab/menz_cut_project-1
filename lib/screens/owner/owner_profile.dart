@@ -7,7 +7,9 @@ import 'dart:typed_data';
 import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
-import '../../services/supabase_service.dart';
+import '../../models/review_model.dart';
+import '../../models/salon_model.dart';
+import '../../services/app_api.dart';
 
 class OwnerProfileScreen extends ConsumerStatefulWidget {
   final VoidCallback? onBackPressed;
@@ -38,6 +40,9 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
   bool _isEditing = false;
   bool _isLoading = false;
   String? _profileImageUrl;
+  SalonModel? _salon;
+  List<ReviewModel> _reviews = [];
+  double _averageRating = 0.0;
   
   // Opening hours state - individual days for better control
   Map<String, Map<String, dynamic>> _openingHours = {
@@ -89,11 +94,45 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         if (_openingHours.isEmpty) {
           _initializeOpeningHours();
         }
+        
+        // Load salon data and reviews
+        await _loadSalonAndReviews(user.id);
       }
     } catch (e) {
       print('Error loading profile data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadSalonAndReviews(String ownerId) async {
+    try {
+      // Get salon for this owner
+      final salon = await AppApi.getSalonByOwnerId(ownerId);
+      if (salon != null) {
+        setState(() {
+          _salon = salon;
+        });
+        
+        // Load reviews for the salon
+        final reviews = await AppApi.getReviewsForSalon(salon.id);
+        
+        // Calculate average rating
+        double averageRating = 0.0;
+        if (reviews.isNotEmpty) {
+          final totalRating = reviews.fold<int>(0, (sum, review) => sum + review.rating);
+          averageRating = totalRating / reviews.length;
+        }
+        
+        setState(() {
+          _reviews = reviews;
+          _averageRating = averageRating;
+        });
+        
+        print('✅ Loaded salon: ${salon.name}, Rating: $averageRating, Reviews: ${reviews.length}');
+      }
+    } catch (e) {
+      print('❌ Error loading salon and reviews: $e');
     }
   }
 
@@ -175,6 +214,7 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                   _buildAppBar(),
                   _buildProfileHeader(),
                   _buildProfileForm(),
+                  _buildReviewsSection(),
                   _buildSettingsSection(),
                   _buildLogoutSection(),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -389,14 +429,16 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
                 const Icon(Icons.star, color: Colors.amber, size: 16),
                 const SizedBox(width: 4),
                 Text(
-                  '4.8 (156 reviews)',
+                  _salon != null 
+                      ? '${_averageRating.toStringAsFixed(1)} (${_reviews.length} ${_reviews.length == 1 ? 'review' : 'reviews'})'
+                      : '0.0 (0 reviews)',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
+                  ),
+                ),
+              ],
+            ),
               ],
             ),
           ),
@@ -431,6 +473,208 @@ class _OwnerProfileScreenState extends ConsumerState<OwnerProfileScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildReviewsSection() {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Customer Reviews',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                if (_reviews.isNotEmpty)
+                  Text(
+                    '${_reviews.length} ${_reviews.length == 1 ? 'review' : 'reviews'}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_reviews.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.reviews_outlined,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No reviews yet',
+                      style: AppTheme.bodyLarge.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reviews will appear here once customers start rating your salon',
+                      style: AppTheme.bodyMedium.copyWith(
+                        color: Colors.grey[500],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: _reviews.take(5).map((review) => _buildReviewCard(review)).toList(),
+              ),
+            if (_reviews.length > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Center(
+                  child: TextButton(
+                    onPressed: () {
+                      context.push('/owner-reviews');
+                    },
+                    child: Text(
+                      'View all ${_reviews.length} reviews',
+                      style: TextStyle(
+                        color: AppTheme.primaryMauve,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(ReviewModel review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppTheme.primaryMauve.withOpacity(0.1),
+                child: Text(
+                  (review.customerName ?? 'U')[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: AppTheme.primaryMauve,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.customerName ?? 'Anonymous',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        ...List.generate(5, (starIndex) {
+                          return Icon(
+                            starIndex < review.rating ? Icons.star : Icons.star_border,
+                            color: AppTheme.accentGold,
+                            size: 16,
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatReviewDate(review.createdAt),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (review.comment.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              review.comment,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatReviewDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   Widget _buildFormSection(String title, List<Widget> children) {

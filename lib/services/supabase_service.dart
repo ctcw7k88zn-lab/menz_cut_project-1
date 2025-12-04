@@ -1256,23 +1256,30 @@ class SupabaseService {
             
             // Only update openingHours if we parsed at least one day
             if (parsedHours.isNotEmpty) {
-              // Replace defaults with parsed hours (parsed hours take precedence)
-              // Only keep defaults for days that weren't parsed
-              openingHours.clear();
-              openingHours.addAll(parsedHours);
-              
-              // Fill in missing days with defaults
+              // Start with defaults, then override with parsed hours
+              // This ensures we have defaults for all days, and owner-set hours override them
               const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+              
+              // Clear and rebuild with defaults first
+              openingHours.clear();
               for (final day in allDays) {
-                if (!openingHours.containsKey(day)) {
-                  openingHours[day] = '9:00-22:00'; // Default for missing days (9 AM - 10 PM)
-                }
+                openingHours[day] = '9:00-22:00'; // Default for all days (9 AM - 10 PM)
               }
               
+              // Now override with owner-set hours (only for days that were explicitly set)
+              parsedHours.forEach((day, hours) {
+                openingHours[day] = hours; // Owner-set hours override defaults
+                if (hours.toLowerCase() == 'closed') {
+                  print('   ⚠️ Owner set $day as Closed');
+                } else {
+                  print('   ✅ Owner set $day hours: $hours');
+                }
+              });
+              
               print('   ✅ Successfully parsed ${parsedHours.length} days');
-              print('   📋 Final parsed hours: $parsedHours');
+              print('   📋 Final opening hours after merge: $openingHours');
             } else {
-              print('   ⚠️ No valid hours found after processing, keeping default');
+              print('   ⚠️ No valid hours found after processing, keeping default (9:00-22:00)');
             }
           } else {
             print('   ⚠️ opening_hours map is empty, using default');

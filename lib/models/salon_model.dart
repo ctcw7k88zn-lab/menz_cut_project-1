@@ -276,9 +276,13 @@ class SalonModel extends HiveObject {
       if (!isOpen && closeTime >= openTime) {
         print('   💡 Reason: Current time ($currentTime) is outside range [$openTime - $closeTime]');
         if (currentTime < openTime) {
-          print('      Salon opens at ${openTime ~/ 60}:${openTime % 60}');
+          final openHour = openTime ~/ 60;
+          final openMin = openTime % 60;
+          print('      ⏰ Salon opens at ${openHour}:${openMin.toString().padLeft(2, '0')} (in ${openTime - currentTime} minutes)');
         } else if (currentTime > closeTime) {
-          print('      Salon closed at ${closeTime ~/ 60}:${closeTime % 60}');
+          final closeHour = closeTime ~/ 60;
+          final closeMin = closeTime % 60;
+          print('      ⏰ Salon closed at ${closeHour}:${closeMin.toString().padLeft(2, '0')} (${currentTime - closeTime} minutes ago)');
         }
       }
       

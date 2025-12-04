@@ -7,6 +7,7 @@ import '../../models/service_model.dart';
 import '../../models/appointment_model.dart';
 import '../../providers/appointments_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/services_provider.dart';
 
 class BookingScreen extends ConsumerStatefulWidget {
   final SalonModel salon;
@@ -54,58 +55,29 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
     'David Kim',
   ];
 
-  // Mock services
-  final List<ServiceModel> _services = [
-    ServiceModel(
-      id: 'service_1',
-      salonId: 'salon_1',
-      name: 'Premium Haircut & Styling',
-      description: 'Professional haircut with personalized styling consultation and blow-dry finish.',
-      category: 'Haircut',
-      price: 85.00,
-      durationMinutes: 60,
-      imageUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400',
-      isActive: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    ServiceModel(
-      id: 'service_2',
-      salonId: 'salon_1',
-      name: 'Full Color Treatment',
-      description: 'Complete hair coloring service with premium products and color consultation.',
-      category: 'Coloring',
-      price: 150.00,
-      durationMinutes: 120,
-      imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
-      isActive: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-  ];
+  // Services will be loaded from the salon using servicesBySalonProvider
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    // Initialize PageController with initial page if service is provided
+    _pageController = PageController(
+      initialPage: widget.service != null ? 1 : 0,
+    );
 
     // Set initial service if provided
     if (widget.service != null) {
       _selectedService = widget.service;
       _currentStep = 1; // Skip service selection
-      // Navigate to the date/time selection page
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pageController.animateToPage(
-          1,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      });
     }
     
     // Load appointments to check availability
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(appointmentsProvider.notifier).loadAppointments();
+      try {
+        ref.read(appointmentsProvider.notifier).loadAppointments();
+      } catch (e) {
+        print('Error loading appointments: $e');
+      }
     });
   }
 
@@ -117,6 +89,18 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Safety check
+    if (widget.salon.id.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            'Invalid salon information',
+            style: AppTheme.heading2,
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -126,52 +110,44 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
             colors: [AppTheme.backgroundWhite, Color(0xFFF1F5F9)],
           ),
         ),
-        child: CustomScrollView(
-          slivers: [
+        child: Column(
+          children: [
             // App Bar
-            SliverAppBar(
-              expandedHeight: AppTheme.isMobile(context) ? 140 : 180, // Adequate height to prevent overlap
-              floating: false,
-              pinned: true,
-              backgroundColor: AppTheme.primaryMauve,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0), // Adequate padding
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16), // Adequate spacing
-                          Center(
-                            child: Text(
-                              'Book Appointment',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Poppins',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 16),
+                      Center(
+                        child: Text(
+                          'Book Appointment',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
                           ),
-                          const SizedBox(height: 16), // Adequate spacing
-                          Center(
-                            child: _buildProgressIndicator(),
-                          ),
-                        ],
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: _buildProgressIndicator(),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
 
             // Content
-            SliverFillRemaining(
+            Expanded(
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (index) {
@@ -253,29 +229,92 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
   }
 
   Widget _buildServiceSelectionStep() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Select Service',
-            style: AppTheme.heading2,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose the service you\'d like to book',
-            style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.textSecondary,
+    // Load services from the salon
+    final servicesAsync = ref.watch(servicesBySalonProvider(widget.salon.id));
+    
+    return servicesAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (error, stack) {
+        print('Error loading services: $error');
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: AppTheme.errorColor),
+                const SizedBox(height: 16),
+                Text(
+                  'Failed to load services',
+                  style: AppTheme.heading3,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: AppTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          
-          Expanded(
-            child: ListView.builder(
-              itemCount: _services.length,
-              itemBuilder: (context, index) {
-                final service = _services[index];
+        );
+      },
+      data: (services) {
+        if (services.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.business_center_outlined, size: 48, color: AppTheme.textSecondary),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No services available',
+                    style: AppTheme.heading3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This salon has not added any services yet.',
+                    style: AppTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select Service',
+                  style: AppTheme.heading2,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose the service you\'d like to book',
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: services.length,
+                itemBuilder: (context, index) {
+                  final service = services[index];
                 final isSelected = _selectedService?.id == service.id;
                 
                 return Container(
@@ -410,9 +449,13 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
                 );
               },
             ),
-          ),
-        ],
+            // Add bottom padding to prevent content from being cut off
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
+    );
+      },
     );
   }
 
@@ -807,7 +850,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
     final discount = _promoCode == 'SAVE10' ? totalPrice * 0.1 : 0.0;
     final finalPrice = totalPrice - discount;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -851,7 +894,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Promo Code
           AppTheme.glassCard(
@@ -887,7 +930,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Notes
           AppTheme.glassCard(
@@ -916,6 +959,8 @@ class _BookingScreenState extends ConsumerState<BookingScreen>
               ],
             ),
           ),
+          // Add bottom padding to prevent content from being cut off by bottom navigation
+          const SizedBox(height: 16),
         ],
       ),
     );

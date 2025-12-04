@@ -198,7 +198,7 @@ class SupabaseService {
               
               final ownerProfile = await _supabase
                   .from('profiles')
-                  .select('opening_hours, shop_address')
+                  .select('opening_hours, shop_address, shop_images')
                   .eq('id', ownerId)
                   .maybeSingle();
               
@@ -219,6 +219,23 @@ class SupabaseService {
                   print('   Address: ${ownerProfile['shop_address']}');
                 } else {
                   print('⚠️ No shop_address in owner profile, using salon table address');
+                }
+                
+                // Update images from owner profile if available (shop_images takes precedence)
+                if (ownerProfile['shop_images'] != null) {
+                  final shopImages = ownerProfile['shop_images'];
+                  if (shopImages is List && shopImages.isNotEmpty) {
+                    // Convert to List<String>
+                    final imageList = shopImages.map((img) => img.toString()).where((img) => img.isNotEmpty && img.startsWith('http')).toList();
+                    if (imageList.isNotEmpty) {
+                      // Use shop_images from owner profile instead of logo_url/banner_url
+                      data['logo_url'] = imageList.first;
+                      if (imageList.length > 1) {
+                        data['banner_url'] = imageList[1];
+                      }
+                      print('✅ Loaded ${imageList.length} shop images from owner profile for salon: ${data['name']}');
+                    }
+                  }
                 }
               } else {
                 print('⚠️ Owner profile not found for salon: ${data['name']} (owner: $ownerId)');
@@ -1158,15 +1175,16 @@ class SupabaseService {
     // Opening hours can be in two formats:
     // 1. Simple format: {'Monday': '9:00-18:00', 'Tuesday': '9:00-18:00'}
     // 2. Owner format: {'Monday': {'open': '11:00 AM', 'close': '8:00 PM', 'isOpen': true}}
-    // Default: All days open 9 AM to 9 PM (wider hours to be more inclusive)
+    // Default: All days open 9 AM to 10 PM (wider hours to be more inclusive)
+    // Using 22:00 (10 PM) instead of 21:00 to give more buffer
     Map<String, String> openingHours = {
-      'Monday': '9:00-21:00',
-      'Tuesday': '9:00-21:00',
-      'Wednesday': '9:00-21:00',
-      'Thursday': '9:00-21:00',
-      'Friday': '9:00-21:00',
-      'Saturday': '9:00-21:00',
-      'Sunday': '9:00-21:00',
+      'Monday': '9:00-22:00',
+      'Tuesday': '9:00-22:00',
+      'Wednesday': '9:00-22:00',
+      'Thursday': '9:00-22:00',
+      'Friday': '9:00-22:00',
+      'Saturday': '9:00-22:00',
+      'Sunday': '9:00-22:00',
     };
     print('📅 Parsing opening hours for salon: ${data['name']}');
     print('   Raw opening_hours data: ${data['opening_hours']}');
@@ -1238,9 +1256,21 @@ class SupabaseService {
             
             // Only update openingHours if we parsed at least one day
             if (parsedHours.isNotEmpty) {
-              // Merge parsed hours with defaults (parsed hours take precedence)
-              openingHours = {...openingHours, ...parsedHours};
+              // Replace defaults with parsed hours (parsed hours take precedence)
+              // Only keep defaults for days that weren't parsed
+              openingHours.clear();
+              openingHours.addAll(parsedHours);
+              
+              // Fill in missing days with defaults
+              const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+              for (final day in allDays) {
+                if (!openingHours.containsKey(day)) {
+                  openingHours[day] = '9:00-22:00'; // Default for missing days (9 AM - 10 PM)
+                }
+              }
+              
               print('   ✅ Successfully parsed ${parsedHours.length} days');
+              print('   📋 Final parsed hours: $parsedHours');
             } else {
               print('   ⚠️ No valid hours found after processing, keeping default');
             }
@@ -1260,6 +1290,23 @@ class SupabaseService {
     }
     
     print('   📋 Final opening hours: $openingHours');
+    
+    // Debug: Check if we're using defaults or owner-set hours
+    final hasOwnerHours = data['opening_hours'] != null;
+    if (hasOwnerHours) {
+      print('   ✅ Using owner-set opening hours');
+      print('   📝 Owner hours were successfully parsed and applied');
+    } else {
+      print('   ⚠️ Using default opening hours (9:00-22:00)');
+      print('   ⚠️ WARNING: No owner-set hours found, using defaults!');
+    }
+    
+    // Debug: Print current day's hours
+    final now = DateTime.now();
+    final dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final currentDay = dayNames[now.weekday - 1];
+    final currentDayHours = openingHours[currentDay];
+    print('   📅 Today is $currentDay, hours: $currentDayHours');
 
     // Debug: Log all data being mapped
     final address = data['address']?.toString() ?? '';

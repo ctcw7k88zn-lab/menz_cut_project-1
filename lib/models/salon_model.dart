@@ -201,11 +201,17 @@ class SalonModel extends HiveObject {
     print('🕐 Checking if $name is open:');
     print('   Current day: $dayName');
     print('   Current time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}');
-    print('   Opening hours for $dayName: $hours');
+    print('   Opening hours for $dayName: "$hours"');
     print('   All opening hours: $openingHours');
     
-    if (hours == null || hours.isEmpty || hours.toLowerCase() == 'closed') {
-      print('   ❌ No hours found or closed for $dayName');
+    if (hours == null || hours.isEmpty) {
+      print('   ❌ No hours found for $dayName');
+      return false;
+    }
+    
+    // Check if explicitly closed
+    if (hours.toLowerCase().trim() == 'closed') {
+      print('   ❌ Day is marked as closed: $dayName');
       return false;
     }
     
@@ -253,10 +259,28 @@ class SalonModel extends HiveObject {
         print('   ⏰ Salon closes after midnight (${openTime}min - ${closeTime}min next day)');
       } else {
         // Normal case: same day closing
+        // Use >= for open and <= for close to include the exact times
+        // If current time is exactly at open or close time, consider it open
+        // IMPORTANT: If close time is exactly at closing (e.g., 21:00), we should still show as open
+        // So we use <= for close time check
         isOpen = currentTime >= openTime && currentTime <= closeTime;
+        print('   📊 Time comparison: $currentTime >= $openTime && $currentTime <= $closeTime');
+        print('      Open check: $currentTime >= $openTime = ${currentTime >= openTime}');
+        print('      Close check: $currentTime <= $closeTime = ${currentTime <= closeTime}');
+        print('      Open time: ${openTime ~/ 60}:${(openTime % 60).toString().padLeft(2, '0')} (${openTime} min)');
+        print('      Close time: ${closeTime ~/ 60}:${(closeTime % 60).toString().padLeft(2, '0')} (${closeTime} min)');
+        print('      Current time: ${now.hour}:${now.minute.toString().padLeft(2, '0')} (${currentTime} min)');
       }
       
       print('   Result: ${isOpen ? "✅ OPEN" : "❌ CLOSED"}');
+      if (!isOpen && closeTime >= openTime) {
+        print('   💡 Reason: Current time ($currentTime) is outside range [$openTime - $closeTime]');
+        if (currentTime < openTime) {
+          print('      Salon opens at ${openTime ~/ 60}:${openTime % 60}');
+        } else if (currentTime > closeTime) {
+          print('      Salon closed at ${closeTime ~/ 60}:${closeTime % 60}');
+        }
+      }
       
       return isOpen;
     } catch (e) {
